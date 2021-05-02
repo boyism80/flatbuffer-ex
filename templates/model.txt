@@ -1,0 +1,117 @@
+package {{ namespace }}
+
+import (
+	source "../flatbuffer/{{ namespace }}"
+
+	flatbuffers "github.com/google/flatbuffers/go"
+)
+
+type {{ name.upper }} struct {
+    {% for param in params -%}
+    {{ param.name.upper }} {{ param.type }}
+    {%- if not loop.last %}
+    {% endif %}
+    {%- endfor %}
+}
+
+{%- for param in params -%}
+{%- if param.slice %}
+func (obj *{{ name.upper }}) {{ param.name.lower }}(builder *flatbuffers.Builder, {{ param.name.lower }} {{ param.type }}) flatbuffers.UOffsetT {
+	_size := len({{ param.name.lower }})
+	offsets := make(
+    {%- if param.element.name.lower == 'string' or not param.element.primitive -%}
+    []flatbuffers.UOffsetT
+    {%- else -%}
+    {{ param.type | capitalize }}
+    {%- endif -%}
+    , _size)
+	for i, x := range {{ param.name.lower }} {
+        offsets[_size-i-1] = 
+        {%- if param.element.name.lower == 'string' -%}
+        builder.CreateString(x)
+        {%- elif param.primitive -%}
+        x
+        {%- else -%}
+        x.create(builder)
+        {%- endif -%}
+	}
+
+	builder.StartVector(4, _size, 4)
+	for _, offset := range offsets {
+		builder.Prepend
+        {%- if param.element.name.lower == 'string' or not param.element.primitive -%}
+        UOffsetT
+        {%- else -%}
+        {{ param.type[2:] | capitalize }}
+        {%- endif -%}
+        (offset)
+	}
+	return builder.EndVector(_size)
+}
+{% endif %}
+{%- endfor %}
+
+func (obj *{{ name.upper }}) create(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
+    {% for param in params -%}
+    {% if param.slice -%}
+    _{{ param.name.lower }} := obj.{{ param.name.lower }}(builder, obj.{{ param.name.upper }})
+    {% elif not param.primitive %}
+    _{{ param.name.lower }} := obj.{{ param.name.upper }}.create(builder)
+    {% elif param.type == 'string' -%}
+    _{{ param.name.lower }} := builder.CreateString(obj.{{ param.name.upper }})
+    {% endif -%}
+    {%- endfor %}
+	source.{{ name.upper }}Start(builder)
+    {% for param in params -%}
+    {% if param.slice -%}
+    source.{{ name.upper }}Add{{ param.name.upper }}(builder, _{{ param.name.lower }})
+    {% elif not param.primitive -%}
+    source.{{ name.upper }}Add{{ param.name.upper }}(builder, _{{ param.name.lower }})
+    {% elif param.type == 'string' -%}
+    source.{{ name.upper }}Add{{ param.name.upper }}(builder, _{{ param.name.lower }})
+    {% else -%}
+    source.{{ name.upper }}Add{{ param.name.upper }}(builder, obj.{{ param.name.upper }})
+    {% endif -%}
+    {%- endfor -%}
+	return source.{{ name.upper }}End(builder)
+}
+
+func (obj *{{ name.upper }}) parse(x *source.{{ name.upper }}) *{{ name.upper }} {
+    {% for param in params -%}
+    {%- if param.slice %}
+    _size{{ param.name.upper }} := x.{{ param.name.upper }}Length()
+	obj.{{ param.name.upper }} = make({{ param.type }}, _size{{ param.name.upper }})
+	for i := 0; i < _size{{ param.name.upper }}; i++ {
+        {%- if param.element.primitive %}
+        obj.{{ param.name.upper }} = append(obj.{{ param.name.upper }}, {% if param.element.name.lower == 'string' %}string(x.{{ param.name.upper }}(i)){% else %}x.{{ param.name.upper }}(i){% endif %})
+        {%- else %}
+        _{{ param.element.name.lower }} := &source.{{ param.element.name.upper }}{}
+		x.{{ param.name.upper }}(_{{ param.element.name.lower }}, i)
+
+		{{ param.element.name.lower }} := {{ param.element.name.upper }}{}
+		{{ param.element.name.lower }}.parse(_{{ param.element.name.lower }})
+		obj.{{ param.name.upper }} = append(obj.{{ param.name.upper }}, {{ param.element.name.lower }})
+        {%- endif %}
+	}
+    {%- elif not param.primitive %}
+    obj.{{ param.name.upper }}.parse(x.{{ param.name.upper }}(&source.{{ param.type }}{}))
+    {%- elif param.type == 'string' %}
+    obj.{{ param.name.upper }} = string(x.{{ param.name.upper }}())
+    {%- else %}
+    obj.{{ param.name.upper }} = x.{{ param.name.upper }}()
+    {%- endif %}
+    {% endfor %}
+	return obj
+}
+
+func (obj *{{ name.upper }}) Serialize() []byte {
+
+	builder := flatbuffers.NewBuilder(0)
+	builder.Finish(obj.create(builder))
+	return builder.FinishedBytes()
+}
+
+func (obj *{{ name.upper }}) Deserialize(bytes []byte) *{{ name.upper }} {
+	root := source.GetRootAs{{ name.upper }}(bytes, 0)
+	return obj.parse(root)
+}

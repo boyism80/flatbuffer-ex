@@ -1,0 +1,99 @@
+namespace flatbuffer.request;
+
+table Vector2 {
+	x: double;
+	y: double;
+}
+
+table Move {
+	sequence: int;
+	position: Vector2;
+	direction: int;
+}
+
+table Stop {
+	sequence: int;
+	position: Vector2;
+}
+
+table Jump {
+	sequence: int;
+	position: Vector2;
+}
+
+table Fall {
+	sequence: int;
+	position: Vector2;
+}
+
+table Collision {
+	sequence: int;
+	position: Vector2;
+	axis: int;
+}
+
+table UpdateNPC {
+	sequence: int;
+	position: Vector2;
+}
+
+table Update {
+	sequence: int;
+	position: Vector2;
+	mobs: [UpdateNPC];
+}
+
+table Click {
+	sequence: int;
+}
+
+table DialogResult {
+	next: bool;
+}
+
+table DialogIndexResult {
+	index: int;
+}
+
+table Warp {
+	
+}
+
+table ActiveItem {
+	id: ulong;
+}
+
+table InactiveItem {
+	id: ulong;
+}
+
+table ActiveSkill {
+	id: int;
+}
+
+table Attack {
+	
+}
+
+table Pickup {
+	
+}
+
+
+
+
+
+
+
+
+
+
+
+
+table CheatPosition {
+	position: Vector2;
+}
+
+table CheatKill {
+	sequence: int;
+}
