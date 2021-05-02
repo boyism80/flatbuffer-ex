@@ -1,0 +1,18 @@
+{
+    "primitive": {
+        "go": {
+            "long": "int64",
+            "ulong": "uint64",
+            "int": "int32",
+            "double": "float64",
+            "float": "float32"
+        },
+        "cs": {}
+    },
+    "regex": {
+        "array": "^\\[(?P<name>(\\w*))\\]$",
+        "namespace": "namespace\\s+(?P<namespace>[\\w.]+);",
+        "table": "(table|struct) (?P<name>\\w*)\\s{(?P<params>(.|\\n)*?)}",
+        "field": "\\s*(?P<name>\\w*)\\s*:\\s*(?P<type>[\\w\\[\\]]*);"
+    }
+}

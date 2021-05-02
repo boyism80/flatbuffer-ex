@@ -1,7 +1,7 @@
 package {{ namespace }}
 
 import (
-	source "../flatbuffer/{{ namespace }}"
+	source "../FlatBuffer/{{ namespace }}"
 
 	flatbuffers "github.com/google/flatbuffers/go"
 )

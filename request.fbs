@@ -1,4 +1,4 @@
-namespace flatbuffer.request;
+namespace FlatBuffer.Request;
 
 table Vector2 {
 	x: double;

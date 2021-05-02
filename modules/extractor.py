@@ -1,13 +1,6 @@
 import os
 import re
-
-primitives = {
-    'long': 'int64',
-    'ulong': 'uint64',
-    'int': 'int32',
-    'double': 'float64',
-    'float': 'float32'
-}
+from modules.config import config
 
 def _match(regex, contents):
     regex = re.compile(regex)
@@ -27,17 +20,24 @@ def _load(file):
         return contents
 
 def py2go(type):
-    matched = _match(r'^\[(?P<name>(\w*))\]$', type)
+    matched = _match(config['regex']['array'], type)
     if matched:
         return f"[]{py2go(matched['name'])}"
 
-    if type in primitives:
-        return primitives[type]
+    if type in config['primitive']['go']:
+        return config['primitive']['go'][type]
+
+    return type
+
+def py2cs(type):
+    matched = _match(config['regex']['array'], type)
+    if matched:
+        return f"List<{py2cs(matched['name'])}>"
 
     return type
 
 def isPrimitive(type, pool):
-    matched = _match(r'^\[(?P<name>(\w*))\]$', type)
+    matched = _match(config['regex']['array'], type)
     if matched:
         return isPrimitive(matched['name'], pool)
 
@@ -49,7 +49,7 @@ def load(path):
     result = {}
     for file in files:
         contents = _load(file)
-        namespace = re.search(r'namespace\s+(?P<namespace>[\w.]+);', contents)
+        namespace = re.search(config['regex']['namespace'], contents)
         if namespace and 'namespace' in namespace.groupdict():
             namespace = namespace['namespace']
         else:
@@ -62,35 +62,38 @@ def load(path):
             namespace = namespace.split('.')[-1]
 
         result[namespace] = []
-        matches = {x['name']: x['params'] for x in _matches(r'(table|struct) (?P<name>\w*)\s{(?P<params>(.|\n)*?)}', contents)}
+        matches = {x['name']: x['params'] for x in _matches(config['regex']['table'], contents)}
         for name, contents in matches.items():
 
             data = {
                 'name': {
+                    'base': name,
                     'lower': name[0].lower() + name[1:],
-                    'upper': name
+                    'upper': name[0].upper() + name[1:]
                 }
             }
 
             params = []
-            for param in _matches(r'\s*(?P<name>\w*)\s*:\s*(?P<type>[\w\[\]]*);', contents):
+            for param in _matches(config['regex']['field'], contents):
                 x = {
                     'name': {
-                        'lower': param['name'],
+                        'base': param['name'],
+                        'lower': param['name'][0].lower() + param['name'][1:],
                         'upper': param['name'][0].upper() + param['name'][1:]
                     },
-                    'type': py2go(param['type']),
+                    'type': param['type'],
                     'primitive': isPrimitive(param['type'], matches)
                 }
 
-                element = _match(r'^\[(?P<name>(\w*))\]$', param['type'])
+                element = _match(config['regex']['array'], param['type'])
                 x['slice'] = bool(element)
                 if element:
-                    name = py2go(element['name'])
+                    name = element['name']
                     x['element'] = {
                         'name': {
+                            'base': name,
                             'lower': name[0].lower() + name[1:],
-                            'upper': name
+                            'upper': name[0].upper() + name[1:]
                         },
                         'primitive': isPrimitive(name, matches)
                     }

@@ -1,0 +1,87 @@
+using System.Collections.Generic;
+using System.Linq;
+
+namespace Protocol.{{ namespace }}
+{
+    public class {{ name.upper }}
+    {
+        {% for param in params -%}
+        public {{ param.type }} {{ param.name.upper }} { get; set; }
+        {%- if not loop.last %}
+        {% endif %}
+        {%- endfor %}
+
+        public {{ name.upper }}()
+        { }
+
+        public {{ name.upper }}(FlatBuffer.{{ namespace }}.{{ name.upper }} obj)
+        {
+            {% for param in params -%}
+            {%- if param.slice -%}
+            this.{{ param.name.upper }} = Enumerable.Range(0, obj.{{ param.name.upper }}Length)
+            {%- if param.element.name.base == 'string' -%}
+            .Select(x => obj.{{ param.name.upper }}(x))
+            {%- elif not param.element.primitive -%}
+            .Select(x => new {{ param.element.name.base }}(obj.{{ param.name.upper }}(x).Value))
+            {%- endif -%}
+            .ToList();
+            {%- else -%}
+            this.{{ param.name.upper }} = {% if param.primitive -%}
+            obj.{{ param.name.upper }};
+            {%- else -%}
+            new {{ param.type }}(obj.{{ param.name.upper }}.Value);
+            {%- endif -%}
+            {%- endif -%}
+            {%- if not loop.last %}
+            {% endif %}
+            {%- endfor %}
+        }
+
+        public FlatBuffers.Offset<FlatBuffer.{{ namespace }}.{{ name.upper }}> ToFlatBuffer(FlatBuffers.FlatBufferBuilder builder)
+        {
+            {% if params|length > 0 -%}
+            {% for param in params -%}
+            {%- if param.slice -%}
+            var _{{ param.name.lower }} = FlatBuffer.{{ namespace }}.{{ name.upper }}.Create{{ param.name.upper }}Vector(builder, this.{{ param.name.upper }}
+            {%- if param.element.name.base == 'string' -%}
+            .Select(x => builder.CreateString(x))
+            {%- elif not param.element.primitive -%}
+            .Select(x => x.ToFlatBuffer(builder))
+            {%- endif -%}
+            .ToArray());
+            {%- elif param.type == 'string' -%}
+            var _{{ param.name.lower }} = builder.CreateString(this.{{ param.name.upper }});
+            {%- else -%}
+            var _{{ param.name.lower }} = this.{{ param.name.upper }}{%- if not param.primitive -%}
+            .ToFlatBuffer(builder)
+            {%- endif -%}
+            ;
+            {%- endif -%}
+            {%- if not loop.last %}
+            {% endif %}
+            {%- endfor %}
+
+            return FlatBuffer.{{ namespace }}.{{ name.upper }}.Create{{ name.upper }}(builder, {% for param in params -%}
+            _{{ param.name.lower }}
+            {%- if not loop.last -%}, {% endif -%}
+            {%- endfor -%}
+            );
+            {%- else -%}
+            FlatBuffer.{{ namespace }}.{{ name.upper }}.Start{{ name.upper }}(builder);
+            return FlatBuffer.{{ namespace }}.{{ name.upper }}.End{{ name.upper }}(builder);
+            {%- endif %}
+        }
+
+        public byte[] Serialize()
+        {
+            var builder = new FlatBuffers.FlatBufferBuilder(512);
+            builder.Finish(this.ToFlatBuffer(builder).Value);
+            return builder.DataBuffer.ToSizedArray();
+        }
+
+        public static {{ name.upper }} Deserialize(byte[] bytes)
+        {
+            return new {{ name.upper }}(FlatBuffer.{{ namespace }}.{{ name.upper }}.GetRootAs{{ name.upper }}(new FlatBuffers.ByteBuffer(bytes)));
+        }
+    }
+}

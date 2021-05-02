@@ -1,4 +1,4 @@
-namespace flatbuffer.response;
+namespace FlatBuffer.Response;
 
 table Vector2 {
 	x: double;
@@ -82,7 +82,9 @@ table Show {
 	characters: [Character];
 }
 
-
+table Leave {
+	sequence: [int];
+}
 
 table SetOwner {
 	sequences: [int];
