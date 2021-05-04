@@ -12,13 +12,15 @@ def loadTemplateFiles(root):
 templates = loadTemplateFiles('templates')
 
 
-def go(namespace, name, params):
+def go(root, package, name, params):
+
     params = copy.deepcopy(params)
     for param in params:
         param['type'] = extractor.py2go(param['type'])
 
     return templates['go'].render({
-        'namespace': namespace,
+        'root': root.replace('\\', '/'),
+        'package': package,
         'name': name,
         'params': params
     })
@@ -32,4 +34,5 @@ def cs(namespace, name, params):
         'namespace': namespace,
         'name': name,
         'params': params
+    })
     })

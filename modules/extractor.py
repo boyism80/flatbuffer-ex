@@ -43,6 +43,23 @@ def isPrimitive(type, pool):
 
     return type not in pool
 
+def isArray(type):
+    return bool(_match(config['regex']['array'], type))
+
+def isString(type):
+    return type == 'string'
+
+def attributes(type, pool):
+    result = {
+        'primitive': isPrimitive(type, pool),
+        'array': isArray(type),
+        'string': isString(type)
+    }
+
+    result['offset'] = result['array'] or result['string'] or not result['primitive']
+    result['declared'] = not result['primitive']
+    return result
+
 def load(path):
     files = [os.path.join(path, f) for f in os.listdir(path) if os.path.isfile(os.path.join(path, f)) and f.endswith('.fbs')]
 
@@ -57,9 +74,6 @@ def load(path):
 
         if not namespace:
             continue
-
-        if '.' in namespace:
-            namespace = namespace.split('.')[-1]
 
         result[namespace] = []
         matches = {x['name']: x['params'] for x in _matches(config['regex']['table'], contents)}
@@ -81,22 +95,21 @@ def load(path):
                         'lower': param['name'][0].lower() + param['name'][1:],
                         'upper': param['name'][0].upper() + param['name'][1:]
                     },
-                    'type': param['type'],
-                    'primitive': isPrimitive(param['type'], matches)
+                    'type': param['type']
                 }
+                x.update(attributes(param['type'], matches))
 
-                element = _match(config['regex']['array'], param['type'])
-                x['slice'] = bool(element)
-                if element:
+                if x['array']:
+                    element = _match(config['regex']['array'], param['type'])
                     name = element['name']
                     x['element'] = {
                         'name': {
                             'base': name,
                             'lower': name[0].lower() + name[1:],
                             'upper': name[0].upper() + name[1:]
-                        },
-                        'primitive': isPrimitive(name, matches)
+                        }
                     }
+                    x['element'].update(attributes(name, matches))
 
                 params.append(x)
             

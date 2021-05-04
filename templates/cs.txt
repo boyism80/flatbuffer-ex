@@ -1,7 +1,9 @@
+{%- set namespace_f = 'FlatBuffer.' + namespace.split('.')[-1] -%}
+
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Protocol.{{ namespace }}
+namespace {{ namespace }}
 {
     public class {{ name.upper }}
     {
@@ -14,14 +16,14 @@ namespace Protocol.{{ namespace }}
         public {{ name.upper }}()
         { }
 
-        public {{ name.upper }}(FlatBuffer.{{ namespace }}.{{ name.upper }} obj)
+        public {{ name.upper }}({{ namespace_f }}.{{ name.upper }} obj)
         {
             {% for param in params -%}
-            {%- if param.slice -%}
+            {%- if param.array -%}
             this.{{ param.name.upper }} = Enumerable.Range(0, obj.{{ param.name.upper }}Length)
-            {%- if param.element.name.base == 'string' -%}
+            {%- if param.element.string -%}
             .Select(x => obj.{{ param.name.upper }}(x))
-            {%- elif not param.element.primitive -%}
+            {%- elif param.element.declared -%}
             .Select(x => new {{ param.element.name.base }}(obj.{{ param.name.upper }}(x).Value))
             {%- endif -%}
             .ToList();
@@ -37,22 +39,22 @@ namespace Protocol.{{ namespace }}
             {%- endfor %}
         }
 
-        public FlatBuffers.Offset<FlatBuffer.{{ namespace }}.{{ name.upper }}> ToFlatBuffer(FlatBuffers.FlatBufferBuilder builder)
+        public FlatBuffers.Offset<{{ namespace_f }}.{{ name.upper }}> ToFlatBuffer(FlatBuffers.FlatBufferBuilder builder)
         {
             {% if params|length > 0 -%}
             {% for param in params -%}
-            {%- if param.slice -%}
-            var _{{ param.name.lower }} = FlatBuffer.{{ namespace }}.{{ name.upper }}.Create{{ param.name.upper }}Vector(builder, this.{{ param.name.upper }}
-            {%- if param.element.name.base == 'string' -%}
+            {%- if param.array -%}
+            var _{{ param.name.lower }} = {{ namespace_f }}.{{ name.upper }}.Create{{ param.name.upper }}Vector(builder, this.{{ param.name.upper }}
+            {%- if param.element.string -%}
             .Select(x => builder.CreateString(x))
-            {%- elif not param.element.primitive -%}
+            {%- elif param.element.declared -%}
             .Select(x => x.ToFlatBuffer(builder))
             {%- endif -%}
             .ToArray());
-            {%- elif param.type == 'string' -%}
+            {%- elif param.string -%}
             var _{{ param.name.lower }} = builder.CreateString(this.{{ param.name.upper }});
             {%- else -%}
-            var _{{ param.name.lower }} = this.{{ param.name.upper }}{%- if not param.primitive -%}
+            var _{{ param.name.lower }} = this.{{ param.name.upper }}{%- if param.declared -%}
             .ToFlatBuffer(builder)
             {%- endif -%}
             ;
@@ -61,14 +63,14 @@ namespace Protocol.{{ namespace }}
             {% endif %}
             {%- endfor %}
 
-            return FlatBuffer.{{ namespace }}.{{ name.upper }}.Create{{ name.upper }}(builder, {% for param in params -%}
+            return {{ namespace_f }}.{{ name.upper }}.Create{{ name.upper }}(builder, {% for param in params -%}
             _{{ param.name.lower }}
             {%- if not loop.last -%}, {% endif -%}
             {%- endfor -%}
             );
             {%- else -%}
-            FlatBuffer.{{ namespace }}.{{ name.upper }}.Start{{ name.upper }}(builder);
-            return FlatBuffer.{{ namespace }}.{{ name.upper }}.End{{ name.upper }}(builder);
+            {{ namespace_f }}.{{ name.upper }}.Start{{ name.upper }}(builder);
+            return {{ namespace_f }}.{{ name.upper }}.End{{ name.upper }}(builder);
             {%- endif %}
         }
 
@@ -81,7 +83,7 @@ namespace Protocol.{{ namespace }}
 
         public static {{ name.upper }} Deserialize(byte[] bytes)
         {
-            return new {{ name.upper }}(FlatBuffer.{{ namespace }}.{{ name.upper }}.GetRootAs{{ name.upper }}(new FlatBuffers.ByteBuffer(bytes)));
+            return new {{ name.upper }}({{ namespace_f }}.{{ name.upper }}.GetRootAs{{ name.upper }}(new FlatBuffers.ByteBuffer(bytes)));
         }
     }
 }
