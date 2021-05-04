@@ -22,12 +22,12 @@ if __name__ == '__main__':
 
         os.makedirs(f'{args.output}/go/{path}', exist_ok=True)
         for data in dataSet:
-            with open(f"{args.output}/go/{path}/{data['name']['upper']}.go", 'w', encoding='utf8') as f:
+            with open(f"{args.output}/go/{path}/{data['name']}.go", 'w', encoding='utf8') as f:
                 result = generator.go(namespace_f, package, data['name'], data['params'])
                 f.write(result)
 
         os.makedirs(f'{args.output}/cs/{path}', exist_ok=True)
         for data in dataSet:
-            with open(f"{args.output}/cs/{path}/{data['name']['upper']}.cs", 'w', encoding='utf8') as f:
+            with open(f"{args.output}/cs/{path}/{data['name']}.cs", 'w', encoding='utf8') as f:
                 result = generator.cs(namespace, data['name'], data['params'])
                 f.write(result)

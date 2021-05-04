@@ -11,28 +11,40 @@ def loadTemplateFiles(root):
 
 templates = loadTemplateFiles('templates')
 
+def __nameset(name):
+    return {
+        'base': name,
+        'upper': name[0].upper() + name[1:],
+        'lower': name[0].lower() + name[1:]
+    }
+
 
 def go(root, package, name, params):
 
     params = copy.deepcopy(params)
     for param in params:
+        param['name'] = __nameset(param['name'])
         param['type'] = extractor.py2go(param['type'])
+        if 'array' in param:
+            param['element']['name'] = __nameset(extractor.py2go(param['element']['name']))
 
     return templates['go'].render({
         'root': root.replace('\\', '/'),
         'package': package,
-        'name': name,
+        'name': __nameset(name),
         'params': params
     })
 
 def cs(namespace, name, params):
     params = copy.deepcopy(params)
     for param in params:
+        param['name'] = __nameset(param['name'])
         param['type'] = extractor.py2cs(param['type'])
+        if 'array' in param:
+            param['element']['name'] = __nameset(extractor.py2cs(param['element']['name']))
 
     return templates['cs'].render({
         'namespace': namespace,
-        'name': name,
+        'name': __nameset(name),
         'params': params
-    })
     })

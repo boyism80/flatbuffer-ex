@@ -58,6 +58,11 @@ def attributes(type, pool):
 
     result['offset'] = result['array'] or result['string'] or not result['primitive']
     result['declared'] = not result['primitive']
+
+    for key in [x for x in result.keys()]:
+        if not result[key]:
+            del result[key]
+
     return result
 
 def load(path):
@@ -79,41 +84,22 @@ def load(path):
         matches = {x['name']: x['params'] for x in _matches(config['regex']['table'], contents)}
         for name, contents in matches.items():
 
-            data = {
-                'name': {
-                    'base': name,
-                    'lower': name[0].lower() + name[1:],
-                    'upper': name[0].upper() + name[1:]
-                }
-            }
-
             params = []
             for param in _matches(config['regex']['field'], contents):
-                x = {
-                    'name': {
-                        'base': param['name'],
-                        'lower': param['name'][0].lower() + param['name'][1:],
-                        'upper': param['name'][0].upper() + param['name'][1:]
-                    },
-                    'type': param['type']
-                }
+                x = { 'name': param['name'], 'type': param['type'] }
                 x.update(attributes(param['type'], matches))
 
-                if x['array']:
+                if 'array' in x:
                     element = _match(config['regex']['array'], param['type'])
-                    name = element['name']
-                    x['element'] = {
-                        'name': {
-                            'base': name,
-                            'lower': name[0].lower() + name[1:],
-                            'upper': name[0].upper() + name[1:]
-                        }
-                    }
-                    x['element'].update(attributes(name, matches))
+                    baseName = element['name']
+                    x['element'] = { 'name': baseName }
+                    x['element'].update(attributes(baseName, matches))
 
                 params.append(x)
-            
-            data['params'] = params
-            result[namespace].append(data)
+
+            result[namespace].append({
+                'name': name,
+                'params': params
+            })
 
     return result
