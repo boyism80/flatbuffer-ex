@@ -27,64 +27,84 @@ table Items {
 
 ## Use in Go
 ```
-items := response.Items{
-	Inventory: []response.Item{
-		{
-			Id:   100,
-			Name: "item 0",
-		},
-		{
-			Id:   101,
-			Name: "item 1",
-		},
-	},
-	Equipment: []response.Equipment{
-		{
-			Id:   200,
-			Name: "equip 0",
-			Type: 210,
-		},
-		{
-			Id:   201,
-			Name: "equip 1",
-			Type: 220,
-		},
-	},
-	Gold: 10000,
-}
-bytes := items.Serialize()
-fmt.Println(bytes)
+package main
 
-des := response.Items{}
-des.Deserialize(bytes)
-fmt.Println(des)
+import (
+    "fmt"
+
+    response "./protocol/Response"
+)
+
+func main() {
+    items := response.Items{
+        Inventory: []response.Item{
+            {
+                Id:   100,
+                Name: "item 0",
+            },
+            {
+                Id:   101,
+                Name: "item 1",
+            },
+        },
+        Equipment: []response.Equipment{
+            {
+                Id:   200,
+                Name: "equip 0",
+                Type: 210,
+            },
+            {
+                Id:   201,
+                Name: "equip 1",
+                Type: 220,
+            },
+        },
+        Gold: 10000,
+    }
+    bytes := items.Serialize()
+    fmt.Println(bytes)
+
+    des := response.Items{}
+    des.Deserialize(bytes)
+    fmt.Println(des)
+}
 ```
 
 
 ## Use in C#
 ```
-static void Main(string[] args)
-{
-    var items = new Items
-    {
-        Inventory = new List<Item>
-        {
-            new Item
-            { Id = 0, Name = "item 0" },
-            new Item
-            { Id = 1, Name = "item 1" }
-        },
-        Equipment = new List<Equipment>
-        {
-            new Equipment
-            { Id = 0, Name = "Equipment 0", Type = 0 },
-            new Equipment
-            { Id = 1, Name = "Equipment 1", Type = 1 }
-        },
-        Gold = 1000
-    };
+using Protocol.Response;
+using System.Collections.Generic;
 
-    var bytes = items.Serialize();
-    var item2 = Items.Deserialize(bytes);
+namespace flatbuffer_test
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            var items = new Items
+            {
+                Inventory = new List<Item>
+                {
+                    new Item
+                    { Id = 0, Name = "item 0" },
+                    new Item
+                    { Id = 1, Name = "item 1" }
+                },
+                Equipment = new List<Equipment>
+                {
+                    new Equipment
+                    { Id = 0, Name = "Equipment 0", Type = 0 },
+                    new Equipment
+                    { Id = 1, Name = "Equipment 1", Type = 1 }
+                },
+                Gold = 1000
+            };
+
+            var bytes = items.Serialize();
+            var item2 = Items.Deserialize(bytes);
+        }
+    }
 }
+
 ```
