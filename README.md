@@ -5,7 +5,7 @@
 
 ## Declaration
 ```
-namespace flatbuffer.response;
+namespace Flatbuffer.Response;
 
 table Equipment {
 	id: ulong;
@@ -32,12 +32,12 @@ package main
 import (
     "fmt"
 
-    response "./protocol/Response"
+    Response "./protocol/Response"
 )
 
 func main() {
-    items := response.Items{
-        Inventory: []response.Item{
+    items := Response.Items{
+        Inventory: []Response.Item{
             {
                 Id:   100,
                 Name: "item 0",
@@ -47,7 +47,7 @@ func main() {
                 Name: "item 1",
             },
         },
-        Equipment: []response.Equipment{
+        Equipment: []Response.Equipment{
             {
                 Id:   200,
                 Name: "equip 0",
@@ -64,7 +64,7 @@ func main() {
     bytes := items.Serialize()
     fmt.Println(bytes)
 
-    des := response.Items{}
+    des := Response.Items{}
     des.Deserialize(bytes)
     fmt.Println(des)
 }

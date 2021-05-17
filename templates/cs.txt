@@ -5,20 +5,21 @@ using System.Linq;
 
 namespace {{ namespace }}
 {
-    public class {{ name.upper }}
+    {% for data in dataSet -%}
+    public class {{ data.name.upper }} : IProtocol
     {
-        {% for param in params -%}
+        {% for param in data.params -%}
         public {{ param.type }} {{ param.name.upper }} { get; set; }
         {%- if not loop.last %}
         {% endif %}
         {%- endfor %}
 
-        public {{ name.upper }}()
+        public {{ data.name.upper }}()
         { }
 
-        public {{ name.upper }}({{ namespace_f }}.{{ name.upper }} obj)
+        public {{ data.name.upper }}({{ namespace_f }}.{{ data.name.upper }} obj)
         {
-            {% for param in params -%}
+            {% for param in data.params -%}
             {%- if param.array -%}
             this.{{ param.name.upper }} = Enumerable.Range(0, obj.{{ param.name.upper }}Length)
             {%- if param.element.string -%}
@@ -39,12 +40,12 @@ namespace {{ namespace }}
             {%- endfor %}
         }
 
-        public FlatBuffers.Offset<{{ namespace_f }}.{{ name.upper }}> ToFlatBuffer(FlatBuffers.FlatBufferBuilder builder)
+        public FlatBuffers.Offset<{{ namespace_f }}.{{ data.name.upper }}> ToFlatBuffer(FlatBuffers.FlatBufferBuilder builder)
         {
-            {% if params|length > 0 -%}
-            {% for param in params -%}
+            {% if data.params|length > 0 -%}
+            {% for param in data.params -%}
             {%- if param.array -%}
-            var _{{ param.name.lower }} = {{ namespace_f }}.{{ name.upper }}.Create{{ param.name.upper }}Vector(builder, this.{{ param.name.upper }}
+            var _{{ param.name.lower }} = {{ namespace_f }}.{{ data.name.upper }}.Create{{ param.name.upper }}Vector(builder, this.{{ param.name.upper }}
             {%- if param.element.string -%}
             .Select(x => builder.CreateString(x))
             {%- elif param.element.declared -%}
@@ -63,14 +64,14 @@ namespace {{ namespace }}
             {% endif %}
             {%- endfor %}
 
-            return {{ namespace_f }}.{{ name.upper }}.Create{{ name.upper }}(builder, {% for param in params -%}
+            return {{ namespace_f }}.{{ data.name.upper }}.Create{{ data.name.upper }}(builder, {% for param in data.params -%}
             _{{ param.name.lower }}
             {%- if not loop.last -%}, {% endif -%}
             {%- endfor -%}
             );
             {%- else -%}
-            {{ namespace_f }}.{{ name.upper }}.Start{{ name.upper }}(builder);
-            return {{ namespace_f }}.{{ name.upper }}.End{{ name.upper }}(builder);
+            {{ namespace_f }}.{{ data.name.upper }}.Start{{ data.name.upper }}(builder);
+            return {{ namespace_f }}.{{ data.name.upper }}.End{{ data.name.upper }}(builder);
             {%- endif %}
         }
 
@@ -81,9 +82,12 @@ namespace {{ namespace }}
             return builder.DataBuffer.ToSizedArray();
         }
 
-        public static {{ name.upper }} Deserialize(byte[] bytes)
+        public static {{ data.name.upper }} Deserialize(byte[] bytes)
         {
-            return new {{ name.upper }}({{ namespace_f }}.{{ name.upper }}.GetRootAs{{ name.upper }}(new FlatBuffers.ByteBuffer(bytes)));
+            return new {{ data.name.upper }}({{ namespace_f }}.{{ data.name.upper }}.GetRootAs{{ data.name.upper }}(new FlatBuffers.ByteBuffer(bytes)));
         }
     }
+    {%- if not loop.last %}
+    {% endif %}
+    {%- endfor %}
 }

@@ -19,32 +19,34 @@ def __nameset(name):
     }
 
 
-def go(root, package, name, params):
+def go(root, package, dataSet):
 
-    params = copy.deepcopy(params)
-    for param in params:
-        param['name'] = __nameset(param['name'])
-        param['type'] = extractor.py2go(param['type'])
-        if 'array' in param:
-            param['element']['name'] = __nameset(extractor.py2go(param['element']['name']))
+    dataSet = copy.deepcopy(dataSet)
+    for data in dataSet:
+        data['name'] = __nameset(data['name'])
+        for param in data['params']:
+            param['name'] = __nameset(param['name'])
+            param['type'] = extractor.py2go(param['type'])
+            if 'array' in param:
+                param['element']['name'] = __nameset(extractor.py2go(param['element']['name']))
 
     return templates['go'].render({
         'root': root.replace('\\', '/'),
         'package': package,
-        'name': __nameset(name),
-        'params': params
+        'dataSet': dataSet
     })
 
-def cs(namespace, name, params):
-    params = copy.deepcopy(params)
-    for param in params:
-        param['name'] = __nameset(param['name'])
-        param['type'] = extractor.py2cs(param['type'])
-        if 'array' in param:
-            param['element']['name'] = __nameset(extractor.py2cs(param['element']['name']))
+def cs(namespace, dataSet):
+    dataSet = copy.deepcopy(dataSet)
+    for data in dataSet:
+        data['name'] = __nameset(data['name'])
+        for param in data['params']:
+            param['name'] = __nameset(param['name'])
+            param['type'] = extractor.py2cs(param['type'])
+            if 'array' in param:
+                param['element']['name'] = __nameset(extractor.py2cs(param['element']['name']))
 
     return templates['cs'].render({
         'namespace': namespace,
-        'name': __nameset(name),
-        'params': params
+        'dataSet': dataSet
     })
