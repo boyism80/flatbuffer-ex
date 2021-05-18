@@ -6,6 +6,12 @@ import (
 	flatbuffers "github.com/google/flatbuffers/go"
 )
 
+const (
+{%- for data in dataSet %}
+    {{ data.name.upper_snake }}{% if loop.first %} = iota{% endif %}
+{%- endfor %}
+)
+
 {% for data in dataSet -%}
 type {{ data.name.upper }} struct {
     {% for param in data.params -%}
@@ -99,6 +105,10 @@ func (obj *{{ data.name.upper }}) parse(x *source.{{ data.name.upper }}) *{{ dat
     {%- endif %}
     {% endfor %}
 	return obj
+}
+
+func (obj *{{ data.name.upper }}) Identity() int {
+    return {{ data.name.upper_snake }}
 }
 
 func (obj *{{ data.name.upper }}) Serialize() []byte {

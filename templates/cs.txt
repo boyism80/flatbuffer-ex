@@ -5,9 +5,18 @@ using System.Linq;
 
 namespace {{ namespace }}
 {
+    public enum Identity
+    {
+{%- for data in dataSet %}
+        {{ data.name.upper_snake }}{% if not loop.last %},{% endif %}
+{%- endfor %}
+    }
+
     {% for data in dataSet -%}
     public class {{ data.name.upper }} : IProtocol
     {
+        public static readonly Identity Identity = {{ namespace }}.Identity.{{ data.name.upper_snake }};
+
         {% for param in data.params -%}
         public {{ param.type }} {{ param.name.upper }} { get; set; }
         {%- if not loop.last %}
@@ -22,6 +31,9 @@ namespace {{ namespace }}
             {% for param in data.params -%}
             {%- if param.array -%}
             this.{{ param.name.upper }} = Enumerable.Range(0, obj.{{ param.name.upper }}Length)
+            {%- if param.element.name.base != 'int' -%}
+            .Cast<{{ param.element.name.base }}>()
+            {%- endif -%}
             {%- if param.element.string -%}
             .Select(x => obj.{{ param.name.upper }}(x))
             {%- elif param.element.declared -%}
@@ -88,6 +100,7 @@ namespace {{ namespace }}
         }
     }
     {%- if not loop.last %}
+
     {% endif %}
     {%- endfor %}
 }

@@ -4,6 +4,7 @@
             "long": "int64",
             "ulong": "uint64",
             "int": "int32",
+            "uint": "uint32",
             "double": "float64",
             "float": "float32"
         },
