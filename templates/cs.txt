@@ -15,7 +15,7 @@ namespace {{ namespace }}
     {% for data in dataSet -%}
     public class {{ data.name.upper }} : IProtocol
     {
-        public static readonly Identity Identity = {{ namespace }}.Identity.{{ data.name.upper_snake }};
+        public uint Identity => (uint){{ namespace }}.Identity.{{ data.name.upper_snake }};
 
         {% for param in data.params -%}
         public {{ param.type }} {{ param.name.upper }} { get; set; }
