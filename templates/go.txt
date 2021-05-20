@@ -1,10 +1,23 @@
-package {{ package }}
+package {{ package|lower }}
 
 import (
+    "protocol"
 	source "{{ root }}/{{ package }}"
 
 	flatbuffers "github.com/google/flatbuffers/go"
 )
+
+var Allocator map[uint32]func([]byte) protocol.Protocol
+
+func init() {
+	Allocator = make(map[uint32]func([]byte) protocol.Protocol)
+    {% for data in dataSet %}
+    Allocator[{{ data.name.upper_snake }}] = func(bytes []byte) protocol.Protocol {
+        x := &{{ data.name.upper }}{}
+		return x.Deserialize(bytes)
+    }
+    {% endfor %}
+}
 
 const (
 {%- for data in dataSet %}
@@ -118,7 +131,7 @@ func (obj *{{ data.name.upper }}) Serialize() []byte {
 	return builder.FinishedBytes()
 }
 
-func (obj *{{ data.name.upper }}) Deserialize(bytes []byte) *{{ data.name.upper }} {
+func (obj *{{ data.name.upper }}) Deserialize(bytes []byte) protocol.Protocol {
 	root := source.GetRootAs{{ data.name.upper }}(bytes, 0)
 	return obj.parse(root)
 }

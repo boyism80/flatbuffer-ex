@@ -32,7 +32,7 @@ namespace {{ namespace }}
             {%- if param.array -%}
             this.{{ param.name.upper }} = Enumerable.Range(0, obj.{{ param.name.upper }}Length)
             {%- if param.element.name.base != 'int' -%}
-            .Cast<{{ param.element.name.base }}>()
+            .Select(x => ({{ param.element.name.base }})System.Convert.ChangeType(x, typeof({{ param.element.name.base }})))
             {%- endif -%}
             {%- if param.element.string -%}
             .Select(x => obj.{{ param.name.upper }}(x))
