@@ -1,22 +1,40 @@
 package {{ package|lower }}
 
 import (
+    "encoding/binary"
     "protocol"
 	source "{{ root }}/{{ package }}"
 
 	flatbuffers "github.com/google/flatbuffers/go"
 )
 
-var Allocator map[uint32]func([]byte) protocol.Protocol
+func Deserialize(size uint32, bytes []byte) protocol.Protocol {
+    offset := 0
+	identity := binary.LittleEndian.Uint32(bytes[:4])
+	offset += 4
 
-func init() {
-	Allocator = make(map[uint32]func([]byte) protocol.Protocol)
-    {% for data in dataSet %}
-    Allocator[{{ data.name.upper_snake }}] = func(bytes []byte) protocol.Protocol {
+	payload := bytes[offset : offset+int(size)]
+	switch identity { {% for data in dataSet %}
+    case {{ data.name.upper_snake }}:
         x := &{{ data.name.upper }}{}
-		return x.Deserialize(bytes)
+		return x.Deserialize(payload)
+    {% if not loop.last %}
+    {% endif %}
+    {%- endfor %}
+	}
+
+	return nil
+}
+
+func Text(p protocol.Protocol) string {
+	switch p.(type) { {% for data in dataSet %}
+	    case *{{ data.name.upper }}:
+		return "{{ data.name.upper_snake }}"
+    {%- if not loop.last %}
+    {% endif %}
+    {%- endfor %}
     }
-    {% endfor %}
+	return ""
 }
 
 const (
