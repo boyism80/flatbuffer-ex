@@ -8,7 +8,9 @@
             "double": "float64",
             "float": "float32"
         },
-        "cs": {}
+        "cs": {
+            "uint32": "uint"
+        }
     },
     "regex": {
         "array": "^\\[(?P<name>(\\w*))\\]$",

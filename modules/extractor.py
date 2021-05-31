@@ -34,6 +34,9 @@ def py2cs(type):
     if matched:
         return f"List<{py2cs(matched['name'])}>"
 
+    if type in config['primitive']['cs']:
+        return config['primitive']['cs'][type]
+
     return type
 
 def isPrimitive(type, pool):
