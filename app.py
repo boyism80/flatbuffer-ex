@@ -20,8 +20,9 @@ if __name__ == '__main__':
         namespace = args.namespace.replace('{namespace}', package)
         path = namespace.replace('.', '/')
 
-        os.makedirs(f'{args.output}/go/{package}', exist_ok=True)
-        with open(f"{args.output}/go/{package}/{package}.go", 'w', encoding='utf8') as f:
+        gopkg = package.lower()
+        os.makedirs(f'{args.output}/go/{gopkg}', exist_ok=True)
+        with open(f"{args.output}/go/{gopkg}/{gopkg}.go", 'w', encoding='utf8') as f:
             result = generator.go(namespace_f, package, dataSet)
             f.write(result)
 
