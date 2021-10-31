@@ -3,38 +3,38 @@ package {{ package|lower }}
 import (
     "encoding/binary"
     "protocol"
-	source "{{ root }}/{{ package }}"
+    source "{{ root }}/{{ package }}"
 
-	flatbuffers "github.com/google/flatbuffers/go"
+    flatbuffers "github.com/google/flatbuffers/go"
 )
 
 func Deserialize(size uint32, bytes []byte) protocol.Protocol {
     offset := 0
-	identity := binary.LittleEndian.Uint32(bytes[:4])
-	offset += 4
+    identity := binary.LittleEndian.Uint32(bytes[:4])
+    offset += 4
 
-	payload := bytes[offset : offset+int(size)]
-	switch identity { {% for data in dataSet %}
+    payload := bytes[offset : offset+int(size)]
+    switch identity { {% for data in dataSet %}
     case {{ data.name.upper_snake }}:
         x := &{{ data.name.upper }}{}
-		return x.Deserialize(payload)
+        return x.Deserialize(payload)
     {% if not loop.last %}
     {% endif %}
     {%- endfor %}
-	}
+    }
 
-	return nil
+    return nil
 }
 
 func Text(p protocol.Protocol) string {
-	switch p.(type) { {% for data in dataSet %}
-	    case *{{ data.name.upper }}:
-		return "{{ data.name.upper_snake }}"
+    switch p.(type) { {% for data in dataSet %}
+        case *{{ data.name.upper }}:
+        return "{{ data.name.upper_snake }}"
     {%- if not loop.last %}
     {% endif %}
     {%- endfor %}
     }
-	return ""
+    return ""
 }
 
 const (
@@ -55,15 +55,15 @@ type {{ data.name.upper }} struct {
 {%- for param in data.params -%}
 {%- if param.array %}
 func (obj *{{ data.name.upper }}) {{ param.name.lower }}(builder *flatbuffers.Builder, {{ param.name.lower }} {{ param.type }}) flatbuffers.UOffsetT {
-	_size := len({{ param.name.lower }})
-	offsets := make(
+    _size := len({{ param.name.lower }})
+    offsets := make(
     {%- if param.element.offset -%}
     []flatbuffers.UOffsetT
     {%- else -%}
     {{ param.type | capitalize }}
     {%- endif -%}
     , _size)
-	for i, x := range {{ param.name.lower }} {
+    for i, x := range {{ param.name.lower }} {
         offsets[_size-i-1] = 
         {%- if param.element.string -%}
         builder.CreateString(x)
@@ -72,19 +72,19 @@ func (obj *{{ data.name.upper }}) {{ param.name.lower }}(builder *flatbuffers.Bu
         {%- else -%}
         x.create(builder)
         {%- endif -%}
-	}
+    }
 
-	builder.StartVector(4, _size, 4)
-	for _, offset := range offsets {
-		builder.Prepend
+    builder.StartVector(4, _size, 4)
+    for _, offset := range offsets {
+        builder.Prepend
         {%- if param.element.offset -%}
         UOffsetT
         {%- else -%}
         {{ param.type[2:] | capitalize }}
         {%- endif -%}
         (offset)
-	}
-	return builder.EndVector(_size)
+    }
+    return builder.EndVector(_size)
 }
 {% endif %}
 {%- endfor %}
@@ -99,7 +99,7 @@ func (obj *{{ data.name.upper }}) create(builder *flatbuffers.Builder) flatbuffe
     _{{ param.name.lower }} := builder.CreateString(obj.{{ param.name.upper }})
     {% endif %}
     {%- endfor %}
-	source.{{ data.name.upper }}Start(builder)
+    source.{{ data.name.upper }}Start(builder)
     {% for param in data.params -%}
     source.{{ data.name.upper }}Add{{ param.name.upper }}(builder, {% if param.offset -%}
     _{{ param.name.lower }})
@@ -107,26 +107,25 @@ func (obj *{{ data.name.upper }}) create(builder *flatbuffers.Builder) flatbuffe
     obj.{{ param.name.upper }})
     {% endif -%}
     {%- endfor %}
-	return source.{{ data.name.upper }}End(builder)
+    return source.{{ data.name.upper }}End(builder)
 }
 
 func (obj *{{ data.name.upper }}) parse(x *source.{{ data.name.upper }}) *{{ data.name.upper }} {
     {% for param in data.params -%}
     {%- if param.array %}
-    _size{{ param.name.upper }} := x.{{ param.name.upper }}Length()
-	obj.{{ param.name.upper }} = make({{ param.type }}, _size{{ param.name.upper }})
-	for i := 0; i < _size{{ param.name.upper }}; i++ {
+    obj.{{ param.name.upper }} = {{ param.type }} {}
+    for i := 0; i < x.{{ param.name.upper }}Length(); i++ {
         {%- if param.element.primitive %}
         obj.{{ param.name.upper }} = append(obj.{{ param.name.upper }}, {% if param.element.string %}string(x.{{ param.name.upper }}(i)){% else %}x.{{ param.name.upper }}(i){% endif %})
         {%- else %}
         _{{ param.element.name.lower }} := &source.{{ param.element.name.upper }}{}
-		x.{{ param.name.upper }}(_{{ param.element.name.lower }}, i)
+        x.{{ param.name.upper }}(_{{ param.element.name.lower }}, i)
 
-		{{ param.element.name.lower }} := {{ param.element.name.upper }}{}
-		{{ param.element.name.lower }}.parse(_{{ param.element.name.lower }})
-		obj.{{ param.name.upper }} = append(obj.{{ param.name.upper }}, {{ param.element.name.lower }})
+        {{ param.element.name.lower }} := {{ param.element.name.upper }}{}
+        {{ param.element.name.lower }}.parse(_{{ param.element.name.lower }})
+        obj.{{ param.name.upper }} = append(obj.{{ param.name.upper }}, {{ param.element.name.lower }})
         {%- endif %}
-	}
+    }
     {%- elif param.declared -%}
     obj.{{ param.name.upper }}.parse(x.{{ param.name.upper }}(&source.{{ param.type }}{}))
     {%- elif param.string -%}
@@ -135,7 +134,7 @@ func (obj *{{ data.name.upper }}) parse(x *source.{{ data.name.upper }}) *{{ dat
     obj.{{ param.name.upper }} = x.{{ param.name.upper }}()
     {%- endif %}
     {% endfor %}
-	return obj
+    return obj
 }
 
 func (obj *{{ data.name.upper }}) Identity() int {
@@ -144,13 +143,13 @@ func (obj *{{ data.name.upper }}) Identity() int {
 
 func (obj *{{ data.name.upper }}) Serialize() []byte {
 
-	builder := flatbuffers.NewBuilder(0)
-	builder.Finish(obj.create(builder))
-	return builder.FinishedBytes()
+    builder := flatbuffers.NewBuilder(0)
+    builder.Finish(obj.create(builder))
+    return builder.FinishedBytes()
 }
 
 func (obj *{{ data.name.upper }}) Deserialize(bytes []byte) protocol.Protocol {
-	root := source.GetRootAs{{ data.name.upper }}(bytes, 0)
-	return obj.parse(root)
+    root := source.GetRootAs{{ data.name.upper }}(bytes, 0)
+    return obj.parse(root)
 }
 {% endfor %}
