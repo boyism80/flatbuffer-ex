@@ -9,7 +9,8 @@
             "float": "float32"
         },
         "cs": {
-            "uint32": "uint"
+            "uint32": "uint",
+            "int64": "long"
         }
     },
     "regex": {
