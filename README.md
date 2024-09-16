@@ -1,110 +1,135 @@
 # flatwrapper
 
 ## Introduce
-내가 쓰려고 만들었다. 실력을 쌓고 거만해지자. 겸손을 피하자. 기만하지 말고 위선떨지 말자.
+C++이랑 C#만 됨 (내가쓰려고 ㅋ)
 
 ## Declaration
 ```
-namespace Flatbuffer.Response;
+// monster.fbs
 
-table Equipment {
-	id: ulong;
-	name: string;
-	type: int;
+namespace fb.game.protocol;
+
+enum Color:byte { Red = 0, Green, Blue = 2 }
+ 
+table Vec3 {
+  x:float;
+  y:float;
+  z:float;
+}
+ 
+table Weapon {
+  name:string;
+  damage:short;
 }
 
-table Item {
-	id: ulong;
-	name: string;
-}
-
-table Items {
-	inventory: [Item];
-	equipment: [Equipment];
-	gold: ulong;
-}
-```
-
-## Use in Go
-```
-package main
-
-import (
-    "fmt"
-
-    Response "./protocol/Response"
-)
-
-func main() {
-    items := Response.Items{
-        Inventory: []Response.Item{
-            {
-                Id:   100,
-                Name: "item 0",
-            },
-            {
-                Id:   101,
-                Name: "item 1",
-            },
-        },
-        Equipment: []Response.Equipment{
-            {
-                Id:   200,
-                Name: "equip 0",
-                Type: 210,
-            },
-            {
-                Id:   201,
-                Name: "equip 1",
-                Type: 220,
-            },
-        },
-        Gold: 10000,
-    }
-    bytes := items.Serialize()
-    fmt.Println(bytes)
-
-    des := Response.Items{}
-    des.Deserialize(bytes)
-    fmt.Println(des)
+table Monster {
+  pos:Vec3; // Struct.
+  mana:short = 150;
+  hp:short = 100;
+  name:string;
+  friendly:bool = false (deprecated);
+  inventory:[ubyte];  // Vector of scalars.
+  color:Color = Blue; // Enum.
+  weapons:[Weapon];   // Vector of tables.
+  path:[Vec3];        // Vector of structs.
 }
 ```
 
+```
+// response.fbs
+
+include "monster.fbs";
+
+namespace fb.game.protocol;
+
+table Response {
+  monsters: [Monster];
+}
+ 
+root_type Response;
+```
+
+## Use in C++
+```
+// Move monster.h and response.h into path "include/model"
+// main.cpp
+
+#include "include/model/response.h"
+
+using namespace fb::game::protocol::model;
+
+int main(int argc, const char** argv)
+{
+    auto monster = Monster();
+    monster.pos = { 1, 2, 3 };
+    monster.hp = 100;
+    monster.mana = 150;
+    monster.name = "orc";
+    monster.inventory = { 1, 2, 3, 4, 5 };
+    monster.color = fb::game::protocol::Color_Blue;
+    monster.weapons =
+    {
+        Weapon("sword", 10), Weapon("Axe", 20)
+    };
+    monster.path =
+    {
+        {1, 2, 3},
+        {4, 5, 6}
+    };
+
+    auto response = Response();
+    response.monsters.push_back(monster);
+
+    auto bytes = response.Serialize();
+    auto deserialized = Response::Deserialize(bytes.data());
+    return 0;
+}
+```
 
 ## Use in C#
 ```
-using Protocol.Response;
-using System.Collections.Generic;
+// Move Monster.cs and Response.cs into path "fb/game/protocol/model"
+// Program.cs
 
-namespace flatbuffer_test
+using fb.game.protocol.model;
+
+var response = new Response
 {
-    class Program
+    Monsters = new List<Monster>
     {
-        static void Main(string[] args)
+        new Monster
         {
-            var items = new Items
-            {
-                Inventory = new List<Item>
-                {
-                    new Item
-                    { Id = 0, Name = "item 0" },
-                    new Item
-                    { Id = 1, Name = "item 1" }
-                },
-                Equipment = new List<Equipment>
-                {
-                    new Equipment
-                    { Id = 0, Name = "Equipment 0", Type = 0 },
-                    new Equipment
-                    { Id = 1, Name = "Equipment 1", Type = 1 }
-                },
-                Gold = 1000
-            };
-
-            var bytes = items.Serialize();
-            var item2 = Items.Deserialize(bytes);
+            Pos = new Vec3 { X = 1.0f, Y = 2.0f, Z = 3.0f },
+            Weapons = new List<Weapon>
+            { 
+                new Weapon { Name = "Sword", Damage = 3 },
+                new Weapon { Name = "Axe", Damage = 5 } 
+            },
+            Name = "Orc",
+            Inventory = new List<byte> { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, 
+            Hp = 100,
+            Mana = 150, 
+            Color = fb.game.protocol.Color.Red,
+            Path = new List<Vec3> { new Vec3 { X = 1.0f, Y = 2.0f, Z = 3.0f } }
+        },
+        new Monster
+        {
+            Pos = new Vec3 { X = 4.0f, Y = 5.0f, Z = 6.0f },
+            Weapons = new List<Weapon> 
+            { 
+                new Weapon { Name = "Sword", Damage = 3 },
+                new Weapon { Name = "Axe", Damage = 5 }
+            },
+            Name = "Spider",
+            Inventory = new List<byte> { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, 
+            Hp = 300,
+            Mana = 20, 
+            Color = fb.game.protocol.Color.Blue,
+            Path = new List<Vec3> { new Vec3 { X = 4.0f, Y = 5.0f, Z = 6.0f } }
         }
     }
-}
+};
+var bytes = response.Serialize();
+response = Response.Deserialize(bytes);
 
 ```

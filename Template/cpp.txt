@@ -1,0 +1,167 @@
+{{~
+func is_enum(type)
+    ret enums | array.map "name" | array.contains type
+end
+
+func is_class_type(field)
+    if field.type | @is_enum
+        ret false 
+    else if field.type | @is_prime_type
+        ret false
+    else
+        ret true
+    end
+end
+
+func is_custom_table(field)
+    ret tables | array.map "name" | array.contains field.type
+end
+
+func cpp_namespace(namespace)
+    namespace | array.join '::'
+end
+
+func create_field(field)
+    if field | @is_custom_table
+        ret "this->" + field.name + ".Build(builder)"
+    end
+
+    case field.type
+        when "string"
+            ret "builder.CreateString(this->" + field.name + ")"
+        when "array"
+            if field.array_element.type | @is_prime_type
+                ret "builder.CreateVector(this->" + field.name + ")"
+            else
+                ret "this->Create" + (field.name | string.capitalize) + "(builder)"
+            end
+        else
+            ret "this->" + field.name
+    end
+end
+
+func cpp_type(field)
+    if field.type | @is_enum
+        ret cpp_namespace(namespace) + "::" + field.type
+    end
+
+    case field.type
+        when "string"
+            ret "std::string"
+        when "byte"
+            ret "int8_t"
+        when "ubyte"
+            ret "uint8_t"
+        when "short"
+            ret "int16_t"
+        when "ushort"
+            ret "uint16_t"
+        when "uint"
+            ret "uint32_t"
+        when "ulong"
+            ret "unsigned long"
+        when "array"
+            ret "std::vector<" + (field.array_element | @cpp_type) + ">"
+        else
+            ret field.type
+    end
+end
+
+func cpp_param_type(field)
+    $result = field | @cpp_type
+    if field | @is_class_type
+        ret "const " + $result + "&"
+    else
+        ret $result
+    end
+end
+~}}
+#include "flatbuffers/flatbuffers.h"
+{{~ for include in includes ~}}
+#include "{{ output_dir }}/{{ include }}.h"
+{{~ end ~}}
+#include "{{ file }}_generated.h"
+#include <string>
+#include <vector>
+
+{{ for n in namespace }}namespace {{ n }} {%{{}%} {{ end }}{%{namespace model { }%}
+
+{{~ for table in tables ~}}
+class {{ table.name }}
+{
+public:
+{{~ for field in table.fields ~}}
+    {{ field | @cpp_type }} {{ field.name }};
+{{~ end ~}}
+
+public:
+    {{ table.name }}()
+    { }
+
+    {{ table.name }}(const {{ table.name }}& x){{ if table.fields }}
+        : {{ end }}{{ for field in table.fields}}{{ field.name }}(x.{{ field.name }}){{ if !for.last }}, {{ end }}{{ end }}
+    { }
+
+    {{ table.name }}({{ for field in table.fields }}{{ field | @cpp_param_type }} {{ field.name }}{{ if !for.last }}, {{ end }}{{ end }}){{ if table.fields }}
+        : {{ for field in table.fields }}{{ field.name }}({{ field.name }}){{ if !for.last }}, {{ end }}{{ end }}{{ end }}
+    { }
+
+    {{ table.name }}(const {{ cpp_namespace(namespace) }}::{{ table.name }}& raw){{ for field in table.fields | array.filter @is_non_array }}{{ if for.first }}
+        : {{ end }}{{ field.name }}({{ if field | @is_custom_table }}*{{ end }}raw.{{ field.name }}(){{ if field.type == 'string' }}->c_str(){{ end }}){{ if !for.last }}, {{ end }}{{ end }}
+    {
+{{~ for field in table.fields | array.filter @is_array ~}}
+        for (int i = 0; i < raw.{{ field.name }}()->size(); i++)
+            this->{{ field.name }}.push_back({{ if field | @is_custom_array }}*{{ end }}raw.{{ field.name }}()->Get(i));
+{{~ if !for.last ~}}
+
+{{~ end ~}}
+{{~ end ~}}
+    }
+
+{{~ for field in table.fields | array.filter @is_custom_array ~}}
+{{ if for.first }}private:{{ end }}
+    auto Create{{ field.name | string.capitalize }}(flatbuffers::FlatBufferBuilder& builder)
+    {
+        auto result = std::vector<flatbuffers::Offset<{{ cpp_namespace(namespace) }}::{{ field.array_element | @cpp_type }}>>();
+        for(auto& x : this->{{ field.name }})
+        {
+            result.push_back(x.Build(builder));
+        }
+
+        return builder.CreateVector(result);
+    }
+{{~ end ~}}
+
+public:
+    auto Build(flatbuffers::FlatBufferBuilder& builder)
+    {
+        return {{ cpp_namespace(namespace) }}::Create{{ table.name }}(builder{{~ if table.fields ~}},
+{{~ for field in table.fields ~}}
+            {{ field | @create_field }}{{ if !for.last }},
+{{ end }}{{~ end ~}}{{~ end ~}});
+    }
+{{~ if root_type == table.name ~}}
+    std::vector<uint8_t> Serialize()
+    {
+        auto builder = flatbuffers::FlatBufferBuilder();
+        builder.Finish(this->Build(builder));
+        auto bytes = builder.GetBufferPointer();
+        auto size = builder.GetSize();
+        auto result = std::vector<uint8_t>(size);
+        std::memcpy(result.data(), bytes, size);
+        return result;
+    }
+
+    static {{ table.name }} Deserialize(const uint8_t* bytes)
+    {
+        auto raw = fb::game::protocol::Get{{ table.name }}(bytes);
+        return {{ table.name }}(*raw);
+    }
+{{~ end ~}}
+};
+{{~ if !for.last ~}}
+
+{{~ end ~}}
+{{~ end ~}}
+
+{{ for n in namespace }}{%{}}%} {{ end }}{%{}}%}

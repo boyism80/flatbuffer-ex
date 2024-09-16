@@ -1,0 +1,117 @@
+{{~
+func is_enum(type)
+    ret enums | array.map "name" | array.contains type
+end
+
+func is_class_type(field)
+    if field.type | @is_enum
+        ret false 
+    else if field.type | @is_prime_type
+        ret false
+    else
+        ret true
+    end
+end
+
+func is_custom_table(field)
+    ret tables | array.map "name" | array.contains field.type
+end
+
+func cs_namespace(namespace)
+    ret namespace | array.join '.'
+end
+
+func cs_type(field)
+    if field.type | @is_enum
+        ret cs_namespace(namespace | array.add field.type)
+    end
+
+    case field.type
+        when "array"
+            ret "List<" + (field.array_element | @cs_type) + ">"
+        when "ubyte"
+            ret "byte"
+        when "byte"
+            ret "sbyte"
+        else
+            ret field.type
+    end
+end
+
+func create_field(field, namespace)
+    if field | @is_custom_table
+        ret (field.name | @upper_camel) + '.Build(builder)'
+    end
+
+    case field.type
+        when "string"
+            ret "builder.CreateString(" + (field.name | @upper_camel) + ")"
+        when "array"
+            if field | @is_custom_array
+                ret (namespace | @cs_namespace) + '.Create' + (field.name | @upper_camel) + 'Vector(builder, ' + (field.name | @upper_camel) + '.ConvertAll(x => x.Build(builder)).ToArray())'
+            else
+                ret (namespace | @cs_namespace) + '.Create' + (field.name | @upper_camel) + 'Vector(builder, ' + (field.name | @upper_camel) + '.ToArray())'
+            end
+        else
+            ret field.name | @upper_camel
+    end
+end
+
+func cs_init_value(field)
+    if field | @is_custom_table
+        ret 'new ' + field.type + '(raw.' + (field.name | @upper_camel) + '.Value)'
+    else if field | @is_custom_array
+        ret 'Enumerable.Range(0, raw.' + (field.name | @upper_camel) + 'Length).Select(i => new ' + (field.array_element.type | @upper_camel) + '(raw.' + (field.name | @upper_camel) + '(i).Value)).ToList()'
+    else if field | @is_array
+        ret 'Enumerable.Range(0, raw.' + (field.name | @upper_camel) + 'Length).Select(i => raw.' + (field.name | @upper_camel) + '(i)).ToList()'
+    else
+        ret 'raw.' + (field.name | @upper_camel)
+    end
+end
+~}}
+using Google.FlatBuffers;
+
+namespace {{ cs_namespace(namespace | array.add 'model') }}
+{
+{{~ for table in tables~}}
+    public class {{ table.name }}
+    {
+{{~ for field in table.fields ~}}
+        public {{ field | @cs_type }} {{ field.name | @upper_camel }} { get; set; }{{ if field.init != '' }} = {{ if field.type | @is_enum }}{{ namespace | @cs_namespace }}.{{ field.type }}.{{ end }}{{ field.init }};{{ end }}
+{{~ end ~}}
+
+        public {{ table.name }}()
+        { }
+
+        public {{ table.name }}({{ cs_namespace(namespace | array.add table.name) }} raw)
+        {
+{{~ for field in table.fields ~}}
+            {{ field.name | @upper_camel }} = {{ field | @cs_init_value }};
+{{~ end ~}}
+        }
+
+        public Offset<{{ cs_namespace(namespace | array.add table.name) }}> Build(FlatBufferBuilder builder)
+        {
+            return fb.game.protocol.{{ table.name }}.Create{{ table.name }}(builder,
+{{~ for field in table.fields ~}}
+                {{ create_field field (namespace | array.add table.name) }}{{ if !for.last}},
+{{ end }}{{~ end ~}});
+        }
+{{~ if root_type == table.name ~}}
+
+        public byte[] Serialize()
+        {
+            var builder = new FlatBufferBuilder(1);
+            var offset = Build(builder);
+            builder.Finish(offset.Value);
+            return builder.SizedByteArray();
+        }
+
+        public static Response Deserialize(byte[] bytes)
+        {
+            return new {{ table.name }}(fb.game.protocol.Response.GetRootAs{{ table.name }}(new ByteBuffer(bytes)));
+        }
+{{~ end ~}}
+    }
+{{~ end ~}}
+}

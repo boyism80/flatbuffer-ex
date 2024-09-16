@@ -1,0 +1,123 @@
+﻿using FlatBufferEx.Model;
+using System;
+using System.Text.RegularExpressions;
+
+namespace FlatBufferEx
+{
+    public static class Parser
+    {
+        private static readonly Regex FieldRegEx = new Regex(@"\s*(?<name>[_a-zA-Z][_a-zA-Z0-9]*)\s*:\s*(?<type>(?:\[?)[_a-zA-Z][_a-zA-Z0-9]*\]?)(?:\s*=\s*(?<init>.+?)\s*(?<deprecated>\(deprecated\))?)?;");
+        private static readonly Regex TableRegEx = new Regex(@"(?<type>struct|table)\s+(?<name>[_a-zA-Z][_a-zA-Z0-9]*)\s*{(?<contents>[\s\S]*?)}");
+        private static readonly Regex ArrayRegEx = new Regex(@"\[(?<type>[a-zA-Z0-9]+)\]");
+        private static readonly Regex EnumRegEx = new Regex(@"enum\s+(?<name>[_a-zA-Z][_a-zA-Z0-9]*)\s*:\s*(?<type>[a-zA-Z]+)\s+{\s*(?<contents>.+)\s*}");
+        private static readonly Regex NamespaceRegEx = new Regex(@"namespace\s+(?<name>[_a-zA-Z][_a-zA-Z0-9\.]*);");
+        private static readonly Regex IncludeRegEx = new Regex(@"include\s*""(?<file>.+)\.fbs""\s*;");
+        private static readonly Regex RootTypeRegEx = new Regex(@"root_type\s+(?<name>[_a-zA-Z][_a-zA-Z0-9\.]*);");
+
+        private static IEnumerable<Field> ParseFields(string contents)
+        {
+            foreach (var match in FieldRegEx.Matches(contents).Cast<Match>())
+            {
+                if (match.Groups["deprecated"].Success)
+                    continue;
+
+                var type = match.Groups["type"].Value;
+                var matchArray = ArrayRegEx.Match(type);
+
+                yield return new Field
+                { 
+                    Name = match.Groups["name"].Value,
+                    Type = matchArray.Success ? "array" : type,
+                    Init = match.Groups["init"].Value,
+                    ArrayElement = matchArray.Success ? new Field
+                    { 
+                        Name = null,
+                        Type = matchArray.Groups["type"].Value,
+                        ArrayElement = null,
+                        Init = null,
+                        Deprecated = false
+                    } : null,
+                    Deprecated = !string.IsNullOrEmpty(match.Groups["deprecated"].Value)
+                };
+            }
+        }
+
+        private static IEnumerable<Table> ParseTable(string src)
+        {
+            foreach(var match in TableRegEx.Matches(src).Cast<Match>())
+            {
+                var table = new Table
+                {
+                    Type = match.Groups["type"].Value,
+                    Name = match.Groups["name"].Value,
+                    Fields = new List<Field>()
+                };
+
+                foreach (var field in ParseFields(match.Groups["contents"].Value))
+                {
+                    table.Fields.Add(field);
+                }
+
+                yield return table;
+            }
+        }
+
+        private static IEnumerable<Model.Enum> ParseEnum(string src)
+        {
+            foreach (var match in EnumRegEx.Matches(src).Cast<Match>())
+            {
+                var @enum = new Model.Enum
+                {
+                    Type = match.Groups["type"].Value,
+                    Name = match.Groups["name"].Value,
+                    Values = match.Groups["contents"].Value.Split(',').Select(x => x.Split('=')[0].Trim()).ToList()
+                };
+
+                yield return @enum;
+            }
+        }
+
+        private static IEnumerable<string> ParseNamespace(string src)
+        {
+            var match = NamespaceRegEx.Match(src);
+            if (match.Success)
+            {
+                var name = match.Groups["name"].Value;
+                foreach (var x in name.Split("."))
+                    yield return x;
+            }
+        }
+
+        private static IEnumerable<string> ParseInclude(string src)
+        {
+            foreach (var match in IncludeRegEx.Matches(src).Cast<Match>())
+            {
+                yield return match.Groups["file"].Value;
+            }
+        }
+
+        private static string ParseRootType(string src)
+        {
+            var match = RootTypeRegEx.Match(src);
+            if (match.Success)
+                return match.Groups["name"].Value;
+            else
+                return null;
+        }
+
+        public static FlatBufferFileInfo Parse(string path, string output_dir)
+        {
+            var src = File.ReadAllText(path);
+            return new FlatBufferFileInfo
+            { 
+                File = Path.GetFileNameWithoutExtension(path),
+                OutputDir = output_dir,
+                RootType = ParseRootType(src),
+                Namespace = ParseNamespace(src).ToList(),
+                Includes = ParseInclude(src).ToList(),
+                Tables = ParseTable(src).ToList(),
+                Enums = ParseEnum(src).ToList()
+            };
+        }
+    }
+}
