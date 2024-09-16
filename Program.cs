@@ -36,6 +36,11 @@ namespace FlatBufferExample
                     _ => throw new ArgumentException()
                 };
 
+                var dir = Path.Join(output, lang);
+                if (Directory.Exists(dir))
+                    Directory.Delete(dir, true);
+                Directory.CreateDirectory(dir);
+
                 foreach (var file in Directory.GetFiles(path, "*.fbs"))
                 {
                     var info = Parser.Parse(file, "model");
@@ -50,15 +55,13 @@ namespace FlatBufferExample
                     var ctx = new TemplateContext();
                     ctx.PushGlobal(obj);
 
-                    var fname = Path.GetFileNameWithoutExtension(file);
-                    var dest = lang switch
+                    var fname = Path.GetFileNameWithoutExtension(lang switch
                     {
-                        "c++" => $"{fname}.h",
-                        "c#" => $"{ScribanEx.UpperCamel(fname)}.cs",
+                        "c++" => $"{Path.GetFileNameWithoutExtension(file)}.h",
+                        "c#" => $"{ScribanEx.UpperCamel(Path.GetFileNameWithoutExtension(file))}.cs",
                         _ => throw new ArgumentException()
-                    };
-                    var code = template.Render(ctx);
-                    File.WriteAllText(Path.Join(output, lang, dest), code);
+                    });
+                    File.WriteAllText(Path.Join(dir, fname), template.Render(ctx));
                 }
             }
         }
