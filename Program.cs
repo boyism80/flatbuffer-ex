@@ -18,6 +18,8 @@ namespace FlatBufferExample
                 { "l|lang=", "code language", v => languages = v },
                 { "o|output=", "output directory", v => output = v }
             };
+            options.Parse(args);
+
             foreach (var lang in languages.Split('|').Select(x => x.Trim().ToLower()).Distinct().ToHashSet())
             {
                 switch (lang)
@@ -55,12 +57,12 @@ namespace FlatBufferExample
                     var ctx = new TemplateContext();
                     ctx.PushGlobal(obj);
 
-                    var fname = Path.GetFileNameWithoutExtension(lang switch
+                    var fname = lang switch
                     {
                         "c++" => $"{Path.GetFileNameWithoutExtension(file)}.h",
                         "c#" => $"{ScribanEx.UpperCamel(Path.GetFileNameWithoutExtension(file))}.cs",
                         _ => throw new ArgumentException()
-                    });
+                    };
                     File.WriteAllText(Path.Join(dir, fname), template.Render(ctx));
                 }
             }
