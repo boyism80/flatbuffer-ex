@@ -92,10 +92,10 @@ namespace {{ cs_namespace(namespace | array.add 'model') }}
 
         public Offset<{{ cs_namespace(namespace | array.add table.name) }}> Build(FlatBufferBuilder builder)
         {
-            return fb.game.protocol.{{ table.name }}.Create{{ table.name }}(builder,
+            return fb.game.protocol.{{ table.name }}.Create{{ table.name | @upper_camel }}(builder{{~ if (table.fields | array.size) > 0~}},
 {{~ for field in table.fields ~}}
                 {{ create_field field (namespace | array.add table.name) }}{{ if !for.last}},
-{{ end }}{{~ end ~}});
+{{ end }}{{~ end ~}}{{~ end ~}});
         }
 {{~ if root_type == table.name ~}}
 

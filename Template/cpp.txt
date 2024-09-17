@@ -99,13 +99,16 @@ public:
     { }
 
     {{ table.name }}(const {{ table.name }}& x){{ if table.fields }}
+{{~ if (table.fields | array.size) > 0 ~}}
         : {{ end }}{{ for field in table.fields}}{{ field.name }}(x.{{ field.name }}){{ if !for.last }}, {{ end }}{{ end }}
+{{~ end ~}}
     { }
 
+{{~ if (table.fields | array.size) > 0 ~}}
     {{ table.name }}({{ for field in table.fields }}{{ field | @cpp_param_type }} {{ field.name }}{{ if !for.last }}, {{ end }}{{ end }}){{ if table.fields }}
         : {{ for field in table.fields }}{{ field.name }}({{ field.name }}){{ if !for.last }}, {{ end }}{{ end }}{{ end }}
     { }
-
+{{~ end ~}}
     {{ table.name }}(const {{ cpp_namespace(namespace) }}::{{ table.name }}& raw){{ for field in table.fields | array.filter @is_non_array }}{{ if for.first }}
         : {{ end }}{{ field.name }}({{ if field | @is_custom_table }}*{{ end }}raw.{{ field.name }}(){{ if field.type == 'string' }}->c_str(){{ end }}){{ if !for.last }}, {{ end }}{{ end }}
     {
