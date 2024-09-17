@@ -74,16 +74,16 @@ using Google.FlatBuffers;
 namespace {{ cs_namespace(namespace | array.add 'model') }}
 {
 {{~ for table in tables~}}
-    public class {{ table.name | @upper_camel }}
+    public class {{ table.name }}
     {
 {{~ for field in table.fields ~}}
         public {{ field | @cs_type }} {{ field.name | @upper_camel }} { get; set; }{{ if field.init != '' }} = {{ if field.type | @is_enum }}{{ namespace | @cs_namespace }}.{{ field.type }}.{{ end }}{{ field.init }};{{ end }}
 {{~ end ~}}
 
-        public {{ table.name | @upper_camel }}()
+        public {{ table.name }}()
         { }
 
-        public {{ table.name | @upper_camel }}({{ cs_namespace(namespace | array.add table.name) }} raw)
+        public {{ table.name }}({{ cs_namespace(namespace | array.add table.name) }} raw)
         {
 {{~ for field in table.fields ~}}
             {{ field.name | @upper_camel }} = {{ field | @cs_init_value }};
@@ -92,10 +92,15 @@ namespace {{ cs_namespace(namespace | array.add 'model') }}
 
         public Offset<{{ cs_namespace(namespace | array.add table.name) }}> Build(FlatBufferBuilder builder)
         {
-            return fb.game.protocol.{{ table.name | @upper_camel }}.Create{{ table.name | @upper_camel }}(builder{{~ if (table.fields | array.size) > 0~}},
+{{~ if (table.fields | array.size) > 0 ~}}
+            return {{ namespace | @cs_namespace }}{{ table.name }}.Create{{ table.name }}(builder{{~ if (table.fields | array.size) > 0~}},
 {{~ for field in table.fields ~}}
                 {{ create_field field (namespace | array.add table.name) }}{{ if !for.last}},
 {{ end }}{{~ end ~}}{{~ end ~}});
+{{~ else ~}}
+            {{ namespace | @cs_namespace }}.{{ table.name }}.Start{{ table.name }}(builder);
+            return {{ namespace | @cs_namespace }}.{{ table.name }}.End{{ table.name }}(builder);
+{{~ end ~}}
         }
 {{~ if root_type == table.name ~}}
 
@@ -109,7 +114,7 @@ namespace {{ cs_namespace(namespace | array.add 'model') }}
 
         public static Response Deserialize(byte[] bytes)
         {
-            return new {{ table.name | @upper_camel }}(fb.game.protocol.Response.GetRootAs{{ table.name | @upper_camel }}(new ByteBuffer(bytes)));
+            return new {{ table.name }}({{ namespace | @cs_namespace }}Response.GetRootAs{{ table.name }}(new ByteBuffer(bytes)));
         }
 {{~ end ~}}
     }
