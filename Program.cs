@@ -11,7 +11,7 @@ namespace FlatBufferExample
         {
             var path = @"D:\Users\CSHYEON\Data\git\game\c++\fb\protocol";
             var output = "output";
-            var includePath = "fb/protocol/flatbuffer";
+            var includePath = string.Empty;
             var languages = "c++";
             var options = new OptionSet
             {
