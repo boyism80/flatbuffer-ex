@@ -61,5 +61,17 @@ namespace FlatBufferEx.Model
 
             return true;
         }
+
+        public static string CsReplaceReservedKeyword(string value)
+        {
+            switch (value)
+            {
+                case "internal":
+                    return "inter";
+
+                default:
+                    return value;
+            }
+        }
     }
 }

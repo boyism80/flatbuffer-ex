@@ -50,7 +50,8 @@ namespace FlatBufferEx
                 {
                     Type = match.Groups["type"].Value,
                     Name = match.Groups["name"].Value,
-                    Fields = new List<Field>()
+                    Fields = new List<Field>(),
+                    Root = RootTypeRegEx.IsMatch(src)
                 };
 
                 foreach (var field in ParseFields(match.Groups["contents"].Value))
@@ -117,6 +118,45 @@ namespace FlatBufferEx
                 Tables = ParseTable(src).ToList(),
                 Enums = ParseEnum(src).ToList()
             };
+        }
+
+        public static IEnumerable<string> CreateOriginTempFiles(string path, string to, string wildcard, string lang)
+        {
+            if (Directory.Exists(to) == false)
+                Directory.CreateDirectory(to);
+
+            foreach (var file in Directory.GetFiles(to, wildcard))
+            {
+                File.Delete(file);
+            }
+
+            foreach (var file in Directory.GetFiles(path, wildcard))
+            {
+                var contents = File.ReadAllText(file);
+                var match = NamespaceRegEx.Match(contents);
+                contents = contents.Remove(match.Groups["name"].Index, match.Groups["name"].Value.Length).Insert(match.Groups["name"].Index, string.Join('.', match.Groups["name"].Value.Split('.').Select(x => 
+                {
+                    switch (lang)
+                    {
+                        case "c#":
+                            return ScribanEx.CsReplaceReservedKeyword(x);
+
+                        default:
+                            return x;
+                    }
+                }).Concat(new[] { "origin" })));
+                var fileName = Path.GetFileName(file);
+                File.WriteAllText(Path.Join(to, Path.GetFileName(file)), contents);
+                yield return fileName;
+            }
+        }
+
+        public static IEnumerable<FlatBufferFileInfo> Parse(string path, string wildcard)
+        {
+            foreach (var file in Directory.GetFiles(path, wildcard))
+            {
+                yield return Parse(file);
+            }
         }
     }
 }

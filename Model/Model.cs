@@ -14,6 +14,7 @@
         public string Type { get; set; }
         public string Name { get; set; }
         public List<Field> Fields { get; set; }
+        public bool Root { get; set; }
     }
 
     public class Enum

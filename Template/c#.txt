@@ -18,12 +18,12 @@ func is_custom_table(field)
 end
 
 func cs_namespace(namespace)
-    ret namespace | array.join '.'
+    ret namespace | array.each @cs_replace_reserved_keyword | array.join '.'
 end
 
 func cs_type(field)
     if field.type | @is_enum
-        ret cs_namespace(namespace | array.add field.type)
+        ret field.type
     end
 
     case field.type
@@ -71,8 +71,19 @@ end
 ~}}
 using Google.FlatBuffers;
 
-namespace {{ cs_namespace(namespace | array.add 'model') }}
+namespace {{ namespace | cs_namespace }}
 {
+{{~ if (enums | array.size) > 0 ~}}
+{{~ for enum in enums ~}}
+    public enum {{ enum.name }} : {{ {type: enum.type} | @cs_type }}
+    {
+{{~ for value in enum.values ~}}
+        {{ value }} = {{ namespace | array.add 'origin' | @cs_namespace }}.{{ value }}{{ if !for.last }},{{ end }}
+{{~ end ~}}
+    }
+{{~ end ~}}
+
+{{~ end ~}}
 {{~ for table in tables~}}
     public class {{ table.name }} : IFlatBufferEx
     {
@@ -83,7 +94,7 @@ namespace {{ cs_namespace(namespace | array.add 'model') }}
         public {{ table.name }}()
         { }
 
-        public {{ table.name }}({{ cs_namespace(namespace | array.add table.name) }} raw)
+        public {{ table.name }}({{ cs_namespace(namespace | array.add 'origin' | array.add table.name) }} raw)
         {
 {{~ for field in table.fields ~}}
             {{ field.name | @upper_camel }} = {{ field | @cs_init_value }};
@@ -95,16 +106,16 @@ namespace {{ cs_namespace(namespace | array.add 'model') }}
         { }
 {{~ end ~}}
 
-        public Offset<{{ cs_namespace(namespace | array.add table.name) }}> Build(FlatBufferBuilder builder)
+        public Offset<{{ cs_namespace(namespace | array.add 'origin' | array.add table.name) }}> Build(FlatBufferBuilder builder)
         {
 {{~ if (table.fields | array.size) > 0 ~}}
-            return {{ namespace | @cs_namespace }}.{{ table.name }}.Create{{ table.name }}(builder{{~ if (table.fields | array.size) > 0~}},
+            return {{ namespace | array.add 'origin' | @cs_namespace }}.{{ table.name }}.Create{{ table.name }}(builder{{~ if (table.fields | array.size) > 0~}},
 {{~ for field in table.fields ~}}
                 {{ create_field field (namespace | array.add table.name) }}{{ if !for.last}},
 {{ end }}{{~ end ~}}{{~ end ~}});
 {{~ else ~}}
-            {{ namespace | @cs_namespace }}.{{ table.name }}.Start{{ table.name }}(builder);
-            return {{ namespace | @cs_namespace }}.{{ table.name }}.End{{ table.name }}(builder);
+            {{ namespace | array.add 'origin' | @cs_namespace }}.{{ table.name }}.Start{{ table.name }}(builder);
+            return {{ namespace | array.add 'origin' | @cs_namespace }}.{{ table.name }}.End{{ table.name }}(builder);
 {{~ end ~}}
         }
 {{~ if root_type == table.name ~}}
