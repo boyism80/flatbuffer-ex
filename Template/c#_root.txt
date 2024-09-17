@@ -1,0 +1,7 @@
+namespace Google.FlatBuffers
+{
+    public interface IFlatBufferEx
+    {
+        byte[] Serialize();
+    }
+}

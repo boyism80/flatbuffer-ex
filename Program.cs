@@ -12,7 +12,7 @@ namespace FlatBufferExample
             var path = @"D:\Users\CSHYEON\Data\git\game\c++\fb\protocol";
             var output = "output";
             var includePath = string.Empty;
-            var languages = "c++";
+            var languages = "c#";
             var options = new OptionSet
             {
                 { "p|path=", "input directory", v => path = v },
@@ -44,6 +44,13 @@ namespace FlatBufferExample
                 if (Directory.Exists(dir))
                     Directory.Delete(dir, true);
                 Directory.CreateDirectory(dir);
+
+                switch (lang)
+                {
+                    case "c#":
+                        File.WriteAllText(Path.Join(dir, "IFlatBufferEx.cs"), Template.Parse(File.ReadAllText("Template/c#_root.txt")).Render(new { }));
+                        break;
+                }
 
                 foreach (var file in Directory.GetFiles(path, "*.fbs"))
                 {

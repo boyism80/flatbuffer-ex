@@ -74,7 +74,7 @@ using Google.FlatBuffers;
 namespace {{ cs_namespace(namespace | array.add 'model') }}
 {
 {{~ for table in tables~}}
-    public class {{ table.name }}
+    public class {{ table.name }} : IFlatBufferEx
     {
 {{~ for field in table.fields ~}}
         public {{ field | @cs_type }} {{ field.name | @upper_camel }} { get; set; }{{ if field.init != '' }} = {{ if field.type | @is_enum }}{{ namespace | @cs_namespace }}.{{ field.type }}.{{ end }}{{ field.init }};{{ end }}
@@ -89,6 +89,11 @@ namespace {{ cs_namespace(namespace | array.add 'model') }}
             {{ field.name | @upper_camel }} = {{ field | @cs_init_value }};
 {{~ end ~}}
         }
+
+{{~ if root_type == table.name ~}}
+        public {{ table.name }}(byte[] bytes) : this({{ namespace | @cs_namespace }}.{{ table.name }}.GetRootAs{{ table.name }}(new ByteBuffer(bytes)))
+        { }
+{{~ end ~}}
 
         public Offset<{{ cs_namespace(namespace | array.add table.name) }}> Build(FlatBufferBuilder builder)
         {
@@ -114,7 +119,7 @@ namespace {{ cs_namespace(namespace | array.add 'model') }}
 
         public static {{ table.name }} Deserialize(byte[] bytes)
         {
-            return new {{ table.name }}({{ namespace | @cs_namespace }}.{{ table.name }}.GetRootAs{{ table.name }}(new ByteBuffer(bytes)));
+            return new {{ table.name }}(bytes);
         }
 {{~ end ~}}
     }
