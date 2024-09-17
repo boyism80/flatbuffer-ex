@@ -26,6 +26,11 @@ func create_field(field)
         ret "this->" + field.name + ".Build(builder)"
     end
 
+    if field.type | @is_enum
+        $cast = namespace | array.add 'origin' | array.add field.type | array.join '::'
+        ret '(' + $cast + ')raw.' + field.name + '()'
+    end
+
     case field.type
         when "string"
             ret "builder.CreateString(this->" + field.name + ")"
@@ -75,6 +80,19 @@ func cpp_param_type(field)
         ret $result
     end
 end
+
+func cpp_right_value(field)
+    if field | @is_custom_table
+        ret '*raw.' + field.name + '()'
+    else if field.type == 'string'
+        ret 'raw.' + field.name + '()->c_str()'
+    else if field.type | @is_enum
+        $cast = namespace | array.add field.type | array.join '::'
+        ret '(' + $cast + ')raw.' + field.name + '()'
+    else
+        ret 'raw.' + field.name + '()'
+    end
+end
 ~}}
 #ifndef __{{ namespace | array.add file | array.each @string.upcase | array.join '_' | string.replace '.' '_' }}__
 #define __{{ namespace | array.add file | array.each @string.upcase | array.join '_' | string.replace '.' '_' }}__
@@ -84,7 +102,7 @@ end
 #include <{{ include_path }}/{{ include }}.h>
 {{~ end ~}}
 {{~ for file in files ~}}
-#include <{{ include_path }}/{{ file }}_generated.h>
+#include <{{ include_path }}/origin/{{ file }}_generated.h>
 {{~ end ~}}
 #include <{{ include_path }}/protocol_type.h>
 #include <string>
@@ -126,7 +144,7 @@ public:
     { }
 {{~ end ~}}
     {{ table.name }}(const {{ cpp_namespace(namespace | array.add 'origin') }}::{{ table.name }}& raw){{ for field in table.fields | array.filter @is_non_array }}{{ if for.first }}
-        : {{ end }}{{ field.name }}({{ if field | @is_custom_table }}*{{ end }}raw.{{ field.name }}(){{ if field.type == 'string' }}->c_str(){{ end }}){{ if !for.last }}, {{ end }}{{ end }}
+        : {{ end }}{{ field.name }}({{ field | @cpp_right_value }}){{ if !for.last }}, {{ end }}{{ end }}
 {{~ if (table.fields | array.size) == 0 ~}}
     { }
 {{~ else ~}}
