@@ -19,7 +19,7 @@ namespace FlatBufferExample
             var path = @"D:\Users\CSHYEON\Data\git\game\c++\fb\protocol";
             var output = "output";
             var includePath = string.Empty;
-            var languages = "c#";
+            var languages = "c++|c#";
             var options = new OptionSet
             {
                 { "p|path=", "input directory", v => path = v },
@@ -82,38 +82,39 @@ namespace FlatBufferExample
                 Directory.CreateDirectory(dir);
 
                 var protocolTypes = new Dictionary<string, List<string>>();
+                var obj = new ScribanEx();
+                var ctx = new TemplateContext();
                 foreach (var g in Parser.Parse(path, "*.fbs").GroupBy(x => string.Join(".", x.Namespace)))
                 {
                     var infos = g.ToList();
-                    var obj = new ScribanEx();
+                    obj = new ScribanEx();
                     obj.Add("files", infos.Select(x => x.File).ToList());
                     obj.Add("include_path", includePath);
                     obj.Add("namespace", g.Key.Split('.').ToList());
                     obj.Add("includes", infos.SelectMany(x => x.Includes).ToList());
                     obj.Add("tables", infos.SelectMany(x => x.Tables).ToList());
                     obj.Add("enums", infos.SelectMany(x => x.Enums).ToList());
-                    var ctx = new TemplateContext();
-                    ctx.PushGlobal(obj);
 
+                    ctx = new TemplateContext();
+                    ctx.PushGlobal(obj);
                     File.WriteAllText(Path.Join(dir, $"{g.Key}{ext}"), template.Render(ctx));
 
                     protocolTypes.Add(g.Key, infos.SelectMany(x => x.Tables).Where(x => x.Root).Select(x => x.Name).ToList());
                 }
 
+                obj = new ScribanEx();
+                obj.Add("protocol_types", protocolTypes.ToDictionary(x => x.Key.Split('.').ToList(), x => x.Value.OrderBy(x => x).ToList()));
+
+                ctx = new TemplateContext();
+                ctx.PushGlobal(obj);
                 switch (lang)
                 {
                     case "c#":
-                        File.WriteAllText(Path.Join(dir, "IFlatBufferEx.cs"), Template.Parse(File.ReadAllText("Template/c#_root.txt")).Render(new
-                        {
-                            ProtocolTypes = protocolTypes.ToDictionary(x => x.Key.Split('.').ToList(), x => x.Value.OrderBy(x => x).ToList())
-                        }));
+                        File.WriteAllText(Path.Join(dir, "IFlatBufferEx.cs"), Template.Parse(File.ReadAllText("Template/c#_root.txt")).Render(ctx));
                         break;
 
                     case "c++":
-                        File.WriteAllText(Path.Join(dir, "protocol_type.h"), Template.Parse(File.ReadAllText("Template/cpp_protocol_type.txt")).Render(new
-                        {
-                            ProtocolTypes = protocolTypes.ToDictionary(x => x.Key.Split('.').ToList(), x => x.Value.OrderBy(x => x).ToList())
-                        }));
+                        File.WriteAllText(Path.Join(dir, "protocol_type.h"), Template.Parse(File.ReadAllText("Template/cpp_protocol_type.txt")).Render(ctx));
                         break;
                 }
             }
