@@ -112,9 +112,9 @@ namespace {{ cs_namespace(namespace | array.add 'model') }}
             return builder.SizedByteArray();
         }
 
-        public static Response Deserialize(byte[] bytes)
+        public static {{ table.name }} Deserialize(byte[] bytes)
         {
-            return new {{ table.name }}({{ namespace | @cs_namespace }}Response.GetRootAs{{ table.name }}(new ByteBuffer(bytes)));
+            return new {{ table.name }}({{ namespace | @cs_namespace }}{{ table.name }}.GetRootAs{{ table.name }}(new ByteBuffer(bytes)));
         }
 {{~ end ~}}
     }
