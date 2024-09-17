@@ -7,7 +7,7 @@ namespace Google.FlatBuffers
 }
 
 {{~ for $pair in protocol_types ~}}
-namespace {{ $pair.key | array.join '.' }}
+namespace {{ $pair.key | array.each @cs_replace_reserved_keyword | array.join '.' }}
 {
     public enum FlatBufferProtocolType
     { 
@@ -23,7 +23,7 @@ namespace {{ $pair.key | array.join '.' }}
             return protocolType switch
             {
 {{~ for type in $pair.value ~}}
-                FlatBufferProtocolType.{{ type }} => typeof({{ $pair.key | array.add 'model' | array.join '.' }}.{{ type }}),
+                FlatBufferProtocolType.{{ type }} => typeof({{ $pair.key | array.each @cs_replace_reserved_keyword | array.join '.' }}.{{ type }}),
 {{~ end ~}}
                 _ => throw new ArgumentException(),
             };
@@ -34,7 +34,7 @@ namespace {{ $pair.key | array.join '.' }}
             return protocol switch
             {
 {{~ for type in $pair.value ~}}
-                {{ $pair.key | array.add 'model' | array.join '.' }}.{{ type }} => FlatBufferProtocolType.{{ type }},
+                {{ $pair.key | array.each @cs_replace_reserved_keyword | array.join '.' }}.{{ type }} => FlatBufferProtocolType.{{ type }},
 {{~ end ~}}
                 _ => throw new ArgumentException(),
             };

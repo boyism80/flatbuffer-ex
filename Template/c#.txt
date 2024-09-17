@@ -101,8 +101,8 @@ namespace {{ namespace | cs_namespace }}
 {{~ end ~}}
         }
 
-{{~ if root_type == table.name ~}}
-        public {{ table.name }}(byte[] bytes) : this({{ namespace | @cs_namespace }}.{{ table.name }}.GetRootAs{{ table.name }}(new ByteBuffer(bytes)))
+{{~ if table.root ~}}
+        public {{ table.name }}(byte[] bytes) : this({{ namespace | array.add 'origin' | @cs_namespace }}.{{ table.name }}.GetRootAs{{ table.name }}(new ByteBuffer(bytes)))
         { }
 {{~ end ~}}
 
@@ -118,7 +118,7 @@ namespace {{ namespace | cs_namespace }}
             return {{ namespace | array.add 'origin' | @cs_namespace }}.{{ table.name }}.End{{ table.name }}(builder);
 {{~ end ~}}
         }
-{{~ if root_type == table.name ~}}
+{{~ if table.root ~}}
 
         public byte[] Serialize()
         {
