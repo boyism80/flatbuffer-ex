@@ -11,12 +11,14 @@ namespace FlatBufferExample
         {
             var path = @"D:\Users\CSHYEON\Data\git\game\c++\fb\protocol";
             var output = "output";
-            var languages = "c#";
+            var includePath = "fb/protocol/flatbuffer";
+            var languages = "c++";
             var options = new OptionSet
             {
                 { "p|path=", "input directory", v => path = v },
                 { "l|lang=", "code language", v => languages = v },
-                { "o|output=", "output directory", v => output = v }
+                { "o|output=", "output directory", v => output = v },
+                { "i|include=", "include directory path", v => includePath = v },
             };
             options.Parse(args);
 
@@ -45,10 +47,10 @@ namespace FlatBufferExample
 
                 foreach (var file in Directory.GetFiles(path, "*.fbs"))
                 {
-                    var info = Parser.Parse(file, "model");
+                    var info = Parser.Parse(file);
                     var obj = new ScribanEx();
                     obj.Add("file", info.File);
-                    obj.Add("output_dir", info.OutputDir);
+                    obj.Add("include_path", includePath);
                     obj.Add("root_type", info.RootType);
                     obj.Add("namespace", info.Namespace);
                     obj.Add("includes", info.Includes);

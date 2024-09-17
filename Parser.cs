@@ -105,13 +105,12 @@ namespace FlatBufferEx
                 return null;
         }
 
-        public static FlatBufferFileInfo Parse(string path, string output_dir)
+        public static FlatBufferFileInfo Parse(string path)
         {
             var src = File.ReadAllText(path);
             return new FlatBufferFileInfo
             { 
                 File = Path.GetFileNameWithoutExtension(path),
-                OutputDir = output_dir,
                 RootType = ParseRootType(src),
                 Namespace = ParseNamespace(src).ToList(),
                 Includes = ParseInclude(src).ToList(),

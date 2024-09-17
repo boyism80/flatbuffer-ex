@@ -78,9 +78,9 @@ end
 ~}}
 #include "flatbuffers/flatbuffers.h"
 {{~ for include in includes ~}}
-#include <{{ namespace | array.join '/' }}/{{ include }}.h>
+#include <{{ include_path }}/{{ include }}.h>
 {{~ end ~}}
-#include "{{ file }}_generated.h"
+#include <{{ include_path }}/{{ file }}_generated.h>
 #include <string>
 #include <vector>
 

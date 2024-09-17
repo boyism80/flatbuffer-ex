@@ -32,7 +32,6 @@
     public class FlatBufferFileInfo
     {
         public string File { get; set; }
-        public string OutputDir { get; set; }
         public string RootType { get; set; }
         public List<string> Namespace { get; set; }
         public List<string> Includes { get; set; } = new List<string>();
