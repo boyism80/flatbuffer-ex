@@ -81,6 +81,7 @@ namespace FlatBufferExample
                     Directory.Delete(dir, true);
                 Directory.CreateDirectory(dir);
 
+                var protocolTypes = new Dictionary<string, List<string>>();
                 foreach (var g in Parser.Parse(path, "*.fbs").GroupBy(x => string.Join(".", x.Namespace)))
                 {
                     var infos = g.ToList();
@@ -95,56 +96,26 @@ namespace FlatBufferExample
                     ctx.PushGlobal(obj);
 
                     File.WriteAllText(Path.Join(dir, $"{g.Key}{ext}"), template.Render(ctx));
+
+                    protocolTypes.Add(g.Key, infos.SelectMany(x => x.Tables).Where(x => x.Root).Select(x => x.Name).ToList());
                 }
 
-                //var protocolTypes = new Dictionary<string, List<string>>();
-                //foreach (var file in Directory.GetFiles(path, "*.fbs"))
-                //{
-                //    var info = Parser.Parse(file);
-                //    var obj = new ScribanEx();
-                //    obj.Add("file", info.File);
-                //    obj.Add("include_path", includePath);
-                //    obj.Add("root_type", info.RootType);
-                //    obj.Add("namespace", info.Namespace);
-                //    obj.Add("includes", info.Includes);
-                //    obj.Add("tables", info.Tables);
-                //    obj.Add("enums", info.Enums);
-                //    var ctx = new TemplateContext();
-                //    ctx.PushGlobal(obj);
+                switch (lang)
+                {
+                    case "c#":
+                        File.WriteAllText(Path.Join(dir, "IFlatBufferEx.cs"), Template.Parse(File.ReadAllText("Template/c#_root.txt")).Render(new
+                        {
+                            ProtocolTypes = protocolTypes.ToDictionary(x => x.Key.Split('.').ToList(), x => x.Value.OrderBy(x => x).ToList())
+                        }));
+                        break;
 
-                //    var fname = lang switch
-                //    {
-                //        "c++" => $"{Path.GetFileNameWithoutExtension(file)}.h",
-                //        "c#" => $"{ScribanEx.UpperCamel(Path.GetFileNameWithoutExtension(file))}.cs",
-                //        _ => throw new ArgumentException()
-                //    };
-                //    File.WriteAllText(Path.Join(dir, fname), template.Render(ctx));
-
-                //    if (string.IsNullOrEmpty(info.RootType) == false)
-                //    {
-                //        var ns = string.Join(".", info.Namespace);
-                //        if (protocolTypes.ContainsKey(ns) == false)
-                //            protocolTypes.Add(ns, new List<string>());
-                //        protocolTypes[ns].Add(info.RootType);
-                //    }
-                //}
-
-                //switch (lang)
-                //{
-                //    case "c#":
-                //        File.WriteAllText(Path.Join(dir, "IFlatBufferEx.cs"), Template.Parse(File.ReadAllText("Template/c#_root.txt")).Render(new 
-                //        {
-                //            ProtocolTypes = protocolTypes.ToDictionary(x => x.Key.Split('.').ToList(), x => x.Value.OrderBy(x => x).ToList())
-                //        }));
-                //        break;
-
-                //    case "c++":
-                //        File.WriteAllText(Path.Join(dir, "protocol_type.h"), Template.Parse(File.ReadAllText("Template/cpp_protocol_type.txt")).Render(new
-                //        {
-                //            ProtocolTypes = protocolTypes.ToDictionary(x => x.Key.Split('.').ToList(), x => x.Value.OrderBy(x => x).ToList())
-                //        }));
-                //        break;
-                //}
+                    case "c++":
+                        File.WriteAllText(Path.Join(dir, "protocol_type.h"), Template.Parse(File.ReadAllText("Template/cpp_protocol_type.txt")).Render(new
+                        {
+                            ProtocolTypes = protocolTypes.ToDictionary(x => x.Key.Split('.').ToList(), x => x.Value.OrderBy(x => x).ToList())
+                        }));
+                        break;
+                }
             }
         }
     }
