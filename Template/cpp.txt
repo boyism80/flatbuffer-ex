@@ -84,7 +84,7 @@ end
 #include <{{ include_path }}/{{ include }}.h>
 {{~ end ~}}
 #include <{{ include_path }}/{{ file }}_generated.h>
-#include <{{ include_path }}/protocol_type.h>
+#include <{{ include_path }}/model/protocol_type.h>
 #include <string>
 #include <vector>
 
@@ -94,6 +94,9 @@ end
 class {{ table.name }}
 {
 public:
+    static inline FlatBufferProtocolType FlatBufferProtocolType = FlatBufferProtocolType::{{ table.name }};
+
+public:
 {{~ for field in table.fields ~}}
     {{ field | @cpp_type }} {{ field.name }};
 {{~ end ~}}
@@ -102,10 +105,8 @@ public:
     {{ table.name }}()
     { }
 
-    {{ table.name }}(const {{ table.name }}& x){{ if table.fields }}
-{{~ if (table.fields | array.size) > 0 ~}}
-        : {{ end }}{{ for field in table.fields}}{{ field.name }}(x.{{ field.name }}){{ if !for.last }}, {{ end }}{{ end }}
-{{~ end ~}}
+    {{ table.name }}(const {{ table.name }}& x){{ if table.fields }}{{ if (table.fields | array.size) > 0 }}
+        : {{ end }}{{ for field in table.fields}}{{ field.name }}(x.{{ field.name }}){{ if !for.last }}, {{ end }}{{ end }}{{ end }}
     { }
 
 {{~ if (table.fields | array.size) > 0 ~}}
@@ -115,6 +116,9 @@ public:
 {{~ end ~}}
     {{ table.name }}(const {{ cpp_namespace(namespace) }}::{{ table.name }}& raw){{ for field in table.fields | array.filter @is_non_array }}{{ if for.first }}
         : {{ end }}{{ field.name }}({{ if field | @is_custom_table }}*{{ end }}raw.{{ field.name }}(){{ if field.type == 'string' }}->c_str(){{ end }}){{ if !for.last }}, {{ end }}{{ end }}
+{{~ if (table.fields | array.size) == 0 ~}}
+    { }
+{{~ else ~}}
     {
 {{~ for field in table.fields | array.filter @is_array ~}}
         for (int i = 0; i < raw.{{ field.name }}()->size(); i++)
@@ -124,6 +128,7 @@ public:
 {{~ end ~}}
 {{~ end ~}}
     }
+{{~ end ~}}
 
 {{~ for field in table.fields | array.filter @is_custom_array ~}}
 {{ if for.first }}private:{{ end }}
