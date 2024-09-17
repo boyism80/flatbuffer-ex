@@ -28,7 +28,7 @@ func create_field(field)
 
     if field.type | @is_enum
         $cast = namespace | array.add 'origin' | array.add field.type | array.join '::'
-        ret '(' + $cast + ')raw.' + field.name + '()'
+        ret '(' + $cast + ')this->' + field.name
     end
 
     case field.type
