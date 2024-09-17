@@ -45,13 +45,7 @@ namespace FlatBufferExample
                     Directory.Delete(dir, true);
                 Directory.CreateDirectory(dir);
 
-                switch (lang)
-                {
-                    case "c#":
-                        File.WriteAllText(Path.Join(dir, "IFlatBufferEx.cs"), Template.Parse(File.ReadAllText("Template/c#_root.txt")).Render(new { }));
-                        break;
-                }
-
+                var protocolTypes = new Dictionary<string, List<string>>();
                 foreach (var file in Directory.GetFiles(path, "*.fbs"))
                 {
                     var info = Parser.Parse(file);
@@ -73,6 +67,24 @@ namespace FlatBufferExample
                         _ => throw new ArgumentException()
                     };
                     File.WriteAllText(Path.Join(dir, fname), template.Render(ctx));
+
+                    if (string.IsNullOrEmpty(info.RootType) == false)
+                    {
+                        var ns = string.Join(".", info.Namespace);
+                        if (protocolTypes.ContainsKey(ns) == false)
+                            protocolTypes.Add(ns, new List<string>());
+                        protocolTypes[ns].Add(info.RootType);
+                    }
+                }
+
+                switch (lang)
+                {
+                    case "c#":
+                        File.WriteAllText(Path.Join(dir, "IFlatBufferEx.cs"), Template.Parse(File.ReadAllText("Template/c#_root.txt")).Render(new 
+                        {
+                            ProtocolTypes = protocolTypes.ToDictionary(x => x.Key.Split('.').ToList(), x => x.Value.OrderBy(x => x).ToList())
+                        }));
+                        break;
                 }
             }
         }

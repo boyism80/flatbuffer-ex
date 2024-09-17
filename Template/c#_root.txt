@@ -5,3 +5,40 @@ namespace Google.FlatBuffers
         byte[] Serialize();
     }
 }
+
+{{~ for $pair in protocol_types ~}}
+namespace {{ $pair.key | array.join '.' }}
+{
+    public enum FlatBufferProtocolType
+    { 
+{{~ for type in $pair.value ~}}
+        {{ type }}{{ if !for.last }},{{ end }}
+{{~ end ~}}
+    }
+
+    public static class FlatBufferProtocolRouter
+    {
+        public static Type GetProtocolType(FlatBufferProtocolType protocolType)
+        {
+            return protocolType switch
+            {
+{{~ for type in $pair.value ~}}
+                FlatBufferProtocolType.{{ type }} => typeof({{ $pair.key | array.add 'model' | array.join '.' }}.{{ type }}),
+{{~ end ~}}
+                _ => throw new ArgumentException(),
+            };
+        }
+
+        public static FlatBufferProtocolType GetProtocolEnum<T>(T protocol)
+        {
+            return protocol switch
+            {
+{{~ for type in $pair.value ~}}
+                {{ $pair.key | array.add 'model' | array.join '.' }}.{{ type }} => FlatBufferProtocolType.{{ type }},
+{{~ end ~}}
+                _ => throw new ArgumentException(),
+            };
+        }
+    }
+}
+{{~ end ~}}
