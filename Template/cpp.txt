@@ -76,11 +76,15 @@ func cpp_param_type(field)
     end
 end
 ~}}
+#ifndef __{{ namespace | array.add file | array.each @string.upcase | array.join '_' | string.replace '.' '_' }}__
+#define __{{ namespace | array.add file | array.each @string.upcase | array.join '_' | string.replace '.' '_' }}__
+
 #include "flatbuffers/flatbuffers.h"
 {{~ for include in includes ~}}
 #include <{{ include_path }}/{{ include }}.h>
 {{~ end ~}}
 #include <{{ include_path }}/{{ file }}_generated.h>
+#include <{{ include_path }}/protocol_type.h>
 #include <string>
 #include <vector>
 
@@ -168,3 +172,5 @@ public:
 {{~ end ~}}
 
 {{ for n in namespace }}{%{}}%} {{ end }}{%{}}%}
+
+#endif

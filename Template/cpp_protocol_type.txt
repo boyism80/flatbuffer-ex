@@ -1,0 +1,18 @@
+#ifndef	__FLATBUFFER_PROTOCOL_TYPE_H__
+#define	__FLATBUFFER_PROTOCOL_TYPE_H__
+
+{{~ for $pair in protocol_types ~}}
+
+{{ for n in $pair.key }}namespace {{ n }} { {{ end }}
+
+enum class FlatBufferProtocolType
+{
+{{~ for type in $pair.value ~}}
+	{{ type }},
+{{~ end ~}}
+};
+
+{{ for n in $pair.key }}} {{ end }}
+{{~ end ~}}
+
+#endif

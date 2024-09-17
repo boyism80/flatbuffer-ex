@@ -12,7 +12,7 @@ namespace FlatBufferExample
             var path = @"D:\Users\CSHYEON\Data\git\game\c++\fb\protocol";
             var output = "output";
             var includePath = string.Empty;
-            var languages = "c#";
+            var languages = "c++";
             var options = new OptionSet
             {
                 { "p|path=", "input directory", v => path = v },
@@ -81,6 +81,13 @@ namespace FlatBufferExample
                 {
                     case "c#":
                         File.WriteAllText(Path.Join(dir, "IFlatBufferEx.cs"), Template.Parse(File.ReadAllText("Template/c#_root.txt")).Render(new 
+                        {
+                            ProtocolTypes = protocolTypes.ToDictionary(x => x.Key.Split('.').ToList(), x => x.Value.OrderBy(x => x).ToList())
+                        }));
+                        break;
+
+                    case "c++":
+                        File.WriteAllText(Path.Join(dir, "protocol_type.h"), Template.Parse(File.ReadAllText("Template/cpp_protocol_type.txt")).Render(new
                         {
                             ProtocolTypes = protocolTypes.ToDictionary(x => x.Key.Split('.').ToList(), x => x.Value.OrderBy(x => x).ToList())
                         }));
