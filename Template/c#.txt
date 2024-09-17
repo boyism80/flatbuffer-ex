@@ -18,7 +18,7 @@ func is_custom_table(field)
 end
 
 func cs_namespace(namespace)
-    ret namespace | array.join '.'
+    ret namespace | array.each @upper_camel | array.join '.'
 end
 
 func cs_type(field)
