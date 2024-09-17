@@ -78,7 +78,7 @@ namespace {{ namespace | cs_namespace }}
     public enum {{ enum.name }} : {{ {type: enum.type} | @cs_type }}
     {
 {{~ for value in enum.values ~}}
-        {{ value }} = {{ namespace | array.add 'origin' | @cs_namespace }}.{{ value }}{{ if !for.last }},{{ end }}
+        {{ value }} = {{ namespace | array.add 'origin' | array.add enum.name | @cs_namespace }}.{{ value }}{{ if !for.last }},{{ end }}
 {{~ end ~}}
     }
 {{~ end ~}}
