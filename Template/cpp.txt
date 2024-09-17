@@ -145,7 +145,7 @@ public:
 {{~ end ~}}
 
 public:
-    auto Build(flatbuffers::FlatBufferBuilder& builder)
+    auto Build(flatbuffers::FlatBufferBuilder& builder) const
     {
         return {{ cpp_namespace(namespace) }}::Create{{ table.name }}(builder{{~ if table.fields ~}}{{ if (table.fields | array.size) > 0 }},
 {{~ for field in table.fields ~}}
@@ -153,7 +153,7 @@ public:
 {{ end }}{{~ end ~}}{{~ end ~}}{{ end }});
     }
 {{~ if root_type == table.name ~}}
-    std::vector<uint8_t> Serialize()
+    std::vector<uint8_t> Serialize() const
     {
         auto builder = flatbuffers::FlatBufferBuilder();
         builder.Finish(this->Build(builder));
