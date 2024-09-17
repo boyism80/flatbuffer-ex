@@ -93,7 +93,7 @@ namespace {{ cs_namespace(namespace | array.add 'model') }}
         public Offset<{{ cs_namespace(namespace | array.add table.name) }}> Build(FlatBufferBuilder builder)
         {
 {{~ if (table.fields | array.size) > 0 ~}}
-            return {{ namespace | @cs_namespace }}{{ table.name }}.Create{{ table.name }}(builder{{~ if (table.fields | array.size) > 0~}},
+            return {{ namespace | @cs_namespace }}.{{ table.name }}.Create{{ table.name }}(builder{{~ if (table.fields | array.size) > 0~}},
 {{~ for field in table.fields ~}}
                 {{ create_field field (namespace | array.add table.name) }}{{ if !for.last}},
 {{ end }}{{~ end ~}}{{~ end ~}});
@@ -114,7 +114,7 @@ namespace {{ cs_namespace(namespace | array.add 'model') }}
 
         public static {{ table.name }} Deserialize(byte[] bytes)
         {
-            return new {{ table.name }}({{ namespace | @cs_namespace }}{{ table.name }}.GetRootAs{{ table.name }}(new ByteBuffer(bytes)));
+            return new {{ table.name }}({{ namespace | @cs_namespace }}.{{ table.name }}.GetRootAs{{ table.name }}(new ByteBuffer(bytes)));
         }
 {{~ end ~}}
     }
