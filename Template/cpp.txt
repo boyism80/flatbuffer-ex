@@ -78,7 +78,7 @@ end
 ~}}
 #include "flatbuffers/flatbuffers.h"
 {{~ for include in includes ~}}
-#include "{{ output_dir }}/{{ include }}.h"
+#include <{{ namespace | array.join '/' }}/{{ include }}.h>
 {{~ end ~}}
 #include "{{ file }}_generated.h"
 #include <string>
@@ -138,10 +138,10 @@ public:
 public:
     auto Build(flatbuffers::FlatBufferBuilder& builder)
     {
-        return {{ cpp_namespace(namespace) }}::Create{{ table.name }}(builder{{~ if table.fields ~}},
+        return {{ cpp_namespace(namespace) }}::Create{{ table.name }}(builder{{~ if table.fields ~}}{{ if (table.fields | array.size) > 0 }},
 {{~ for field in table.fields ~}}
             {{ field | @create_field }}{{ if !for.last }},
-{{ end }}{{~ end ~}}{{~ end ~}});
+{{ end }}{{~ end ~}}{{~ end ~}}{{ end }});
     }
 {{~ if root_type == table.name ~}}
     std::vector<uint8_t> Serialize()
@@ -157,7 +157,7 @@ public:
 
     static {{ table.name }} Deserialize(const uint8_t* bytes)
     {
-        auto raw = fb::game::protocol::Get{{ table.name }}(bytes);
+        auto raw = {{ namespace | @cpp_namespace }}::Get{{ table.name }}(bytes);
         return {{ table.name }}(*raw);
     }
 {{~ end ~}}
