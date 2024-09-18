@@ -19,7 +19,7 @@ namespace FlatBufferExample
             var path = @"D:\Users\CSHYEON\Data\git\game\c++\fb\protocol";
             var output = "output";
             var includePath = string.Empty;
-            var languages = "c++|c#";
+            var languages = "c#";
             var options = new OptionSet
             {
                 { "p|path=", "input directory", v => path = v },
@@ -89,12 +89,13 @@ namespace FlatBufferExample
                 Directory.CreateDirectory(dir);
 
                 var protocolTypes = new Dictionary<string, List<string>>();
-                var obj = new ScribanEx();
+                var parseResultList = Parser.Parse(path, "*.fbs").ToList();
+                var obj = new ScribanEx(parseResultList);
                 var ctx = new TemplateContext();
-                foreach (var g in Parser.Parse(path, "*.fbs").GroupBy(x => string.Join(".", x.Namespace)))
+                foreach (var g in parseResultList.GroupBy(x => string.Join(".", x.Namespace)))
                 {
                     var infos = g.ToList();
-                    obj = new ScribanEx();
+                    obj = new ScribanEx(parseResultList);
                     obj.Add("files", infos.Select(x => x.File).Distinct().ToList());
                     obj.Add("include_path", includePath);
                     obj.Add("namespace", g.Key.Split('.').ToList());
@@ -109,7 +110,7 @@ namespace FlatBufferExample
                     protocolTypes.Add(g.Key, infos.SelectMany(x => x.Tables).Where(x => x.Root).Select(x => x.Name).ToList());
                 }
 
-                obj = new ScribanEx();
+                obj = new ScribanEx(parseResultList);
                 obj.Add("protocol_types", protocolTypes.ToDictionary(x => x.Key.Split('.').ToList(), x => x.Value.OrderBy(x => x).ToList()));
 
                 ctx = new TemplateContext();

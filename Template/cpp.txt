@@ -1,22 +1,4 @@
 {{~
-func is_enum(type)
-    ret enums | array.map "name" | array.contains type
-end
-
-func is_class_type(field)
-    if field.type | @is_enum
-        ret false 
-    else if field.type | @is_prime_type
-        ret false
-    else
-        ret true
-    end
-end
-
-func is_custom_table(field)
-    ret tables | array.map "name" | array.contains field.type
-end
-
 func cpp_namespace(namespace)
     namespace | array.join '::'
 end
@@ -26,7 +8,7 @@ func create_field(field)
         ret "this->" + field.name + ".Build(builder)"
     end
 
-    if field.type | @is_enum
+    if field | @is_enum
         $cast = namespace | array.add 'origin' | array.add field.type | array.join '::'
         ret '(' + $cast + ')this->' + field.name
     end
@@ -47,11 +29,11 @@ end
 
 func cpp_type(field)
     $prefix = ''
-    if field.namespace
-        $prefix = (field.namespace | cpp_namespace) + '::'
+    if field.refer_namespace
+        $prefix = (field.refer_namespace | cpp_namespace) + '::'
     end
 
-    if field.type | @is_enum
+    if field | @is_enum
         ret $prefix + field.type
     end
 
@@ -91,7 +73,7 @@ func cpp_right_value(field)
         ret '*raw.' + field.name + '()'
     else if field.type == 'string'
         ret 'raw.' + field.name + '()->c_str()'
-    else if field.type | @is_enum
+    else if field | @is_enum
         $cast = namespace | array.add field.type | array.join '::'
         ret '(' + $cast + ')raw.' + field.name + '()'
     else

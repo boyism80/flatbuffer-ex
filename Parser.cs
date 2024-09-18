@@ -1,5 +1,4 @@
 ﻿using FlatBufferEx.Model;
-using System;
 using System.Text.RegularExpressions;
 
 namespace FlatBufferEx
@@ -14,7 +13,7 @@ namespace FlatBufferEx
         private static readonly Regex IncludeRegEx = new Regex(@"include\s*""(?<file>.+)\.fbs""\s*;");
         private static readonly Regex RootTypeRegEx = new Regex(@"root_type\s+(?<name>[_a-zA-Z][_a-zA-Z0-9\.]*);");
 
-        private static IEnumerable<Field> ParseFields(string contents)
+        private static IEnumerable<Field> ParseFields(string contents, List<string> ns)
         {
             foreach (var match in FieldRegEx.Matches(contents).Cast<Match>())
             {
@@ -22,11 +21,11 @@ namespace FlatBufferEx
                     continue;
 
                 var type = match.Groups["type"].Value;
-                var ns = null as List<string>;
+                var referencedNamespace = null as List<string>;
                 if (type.Contains('.'))
                 {
                     var splitted = type.Split('.').ToList();
-                    ns = splitted.GetRange(0, splitted.Count - 1).ToList();
+                    referencedNamespace = splitted.GetRange(0, splitted.Count - 1).ToList();
                     type = splitted.Last();
                 }
                 var matchArray = ArrayRegEx.Match(type);
@@ -37,6 +36,7 @@ namespace FlatBufferEx
                     Type = matchArray.Success ? "array" : type,
                     Init = match.Groups["init"].Value,
                     Namespace = ns,
+                    ReferNamespace = referencedNamespace,
                     ArrayElement = matchArray.Success ? new Field
                     { 
                         Name = null,
@@ -52,6 +52,7 @@ namespace FlatBufferEx
 
         private static IEnumerable<Table> ParseTable(string src)
         {
+            var ns = NamespaceRegEx.Match(src).Groups["name"].Value.Split('.').ToList();
             foreach(var match in TableRegEx.Matches(src).Cast<Match>())
             {
                 var table = new Table
@@ -59,10 +60,11 @@ namespace FlatBufferEx
                     Type = match.Groups["type"].Value,
                     Name = match.Groups["name"].Value,
                     Fields = new List<Field>(),
-                    Root = RootTypeRegEx.IsMatch(src)
+                    Root = RootTypeRegEx.IsMatch(src),
+                    Namespace = ns
                 };
 
-                foreach (var field in ParseFields(match.Groups["contents"].Value))
+                foreach (var field in ParseFields(match.Groups["contents"].Value, ns))
                 {
                     table.Fields.Add(field);
                 }
@@ -73,13 +75,15 @@ namespace FlatBufferEx
 
         private static IEnumerable<Model.Enum> ParseEnum(string src)
         {
+            var ns = NamespaceRegEx.Match(src).Groups["name"].Value.Split('.').ToList();
             foreach (var match in EnumRegEx.Matches(src).Cast<Match>())
             {
                 var @enum = new Model.Enum
                 {
                     Type = match.Groups["type"].Value,
                     Name = match.Groups["name"].Value,
-                    Values = match.Groups["contents"].Value.Split(',').Select(x => x.Split('=')[0].Trim()).ToList()
+                    Values = match.Groups["contents"].Value.Split(',').Select(x => x.Split('=')[0].Trim()).ToList(),
+                    Namespace = ns
                 };
 
                 yield return @enum;

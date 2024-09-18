@@ -4,6 +4,96 @@ namespace FlatBufferEx.Model
 {
     public class ScribanEx : ScriptObject
     {
+        private static List<Model.Enum> _enums = new List<Enum>();
+        private static List<Model.Table> _tables = new List<Table>();
+
+        public ScribanEx(IEnumerable<FlatBufferFileInfo> infos)
+        {
+            _enums = infos.SelectMany(x => x.Enums).ToList();
+            _tables = infos.SelectMany(x => x.Tables).ToList();
+        }
+
+        public static bool IsEnum(object x)
+        {
+            string name;
+            List<string> referencedNamespace;
+            switch (x)
+            {
+                case ScriptObject so:
+                    name = so.GetSafeValue<string>("name");
+                    referencedNamespace = so.GetSafeValue<List<string>>("refer_namespace");
+                    break;
+
+                case Model.Field f:
+                    name = f.Name;
+                    referencedNamespace = f.ReferNamespace;
+                    break;
+
+                default:
+                    return false;
+            }
+
+            foreach (var e in _enums)
+            {
+                if (name != e.Name)
+                    continue;
+
+                var ns1 = string.Join('.', referencedNamespace ?? new List<string>());
+                var ns2 = string.Join('.', e.Namespace ?? new List<string>());
+                if (ns1 != ns2)
+                    continue;
+
+                return true;
+            }
+
+            return false;
+        }
+
+        public static bool IsClassType(object x)
+        {
+            var name = string.Empty;
+            var type = string.Empty;
+            switch (x)
+            {
+                case ScriptObject so:
+                    name = so.GetSafeValue<string>("name");
+                    type = so.GetSafeValue<string>("type");
+                    break;
+
+                case Model.Field f:
+                    name = f.Name;
+                    type = f.Type;
+                    break;
+            }
+
+            if (IsEnum(new Field { Name = name }))
+                return false;
+
+            if (IsPrimeType(type))
+                return false;
+
+            return true;
+        }
+
+        public static bool IsCustomTable(object x)
+        {
+            var name = string.Empty;
+            var type = string.Empty;
+            switch (x)
+            {
+                case ScriptObject so:
+                    name = so.GetSafeValue<string>("name");
+                    type = so.GetSafeValue<string>("type");
+                    break;
+
+                case Model.Field f:
+                    name = f.Name;
+                    type = f.Type;
+                    break;
+            }
+            return _tables.Select(x => x.Name).Contains(type);
+        }
+
         public static string UpperCamel(string value)
         {
             if (value == null)

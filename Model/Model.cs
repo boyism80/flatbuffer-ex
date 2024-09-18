@@ -6,6 +6,7 @@
         public string Type { get; set; }
         public string Init { get; set; }
         public List<string> Namespace { get; set; }
+        public List<string> ReferNamespace { get; set; }
         public Field ArrayElement { get; set; }
         public bool Deprecated { get; set; }
     }
@@ -16,6 +17,7 @@
         public string Name { get; set; }
         public List<Field> Fields { get; set; }
         public bool Root { get; set; }
+        public List<string> Namespace { get; set; }
     }
 
     public class Enum
@@ -23,6 +25,7 @@
         public string Name { get; set; }
         public string Type { get; set; }
         public List<string> Values { get; set; }
+        public List<string> Namespace { get; set; }
     }
 
     public class Union

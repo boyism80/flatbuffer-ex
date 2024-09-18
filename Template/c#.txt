@@ -1,33 +1,15 @@
 {{~
-func is_enum(type)
-    ret enums | array.map "name" | array.contains type
-end
-
-func is_class_type(field)
-    if field.type | @is_enum
-        ret false 
-    else if field.type | @is_prime_type
-        ret false
-    else
-        ret true
-    end
-end
-
-func is_custom_table(field)
-    ret tables | array.map "name" | array.contains field.type
-end
-
 func cs_namespace(namespace)
     ret namespace | array.each @cs_replace_reserved_keyword | array.join '.'
 end
 
 func cs_type(field)
     $prefix = ''
-    if field.namespace
-        $prefix = (field.namespace | @cs_namespace) + '.'
+    if field.refer_namespace
+        $prefix = (field.refer_namespace | @cs_namespace) + '.'
     end
 
-    if field.type | @is_enum
+    if field | @is_enum
         ret $prefix + field.type
     end
 
@@ -48,7 +30,7 @@ func create_field(field, custom_namespace)
         ret (field.name | @upper_camel) + '.Build(builder)'
     end
 
-    if field.type | @is_enum
+    if field | @is_enum
         $cast = namespace | array.concat ['origin', field.type] | array.each @cs_replace_reserved_keyword | array.join '.'
         ret '(' + $cast + ')' + (field.name | @upper_camel)
     end
@@ -74,7 +56,7 @@ func cs_init_value(field)
         ret 'Enumerable.Range(0, raw.' + (field.name | @upper_camel) + 'Length).Select(i => new ' + (field.array_element.type | @upper_camel) + '(raw.' + (field.name | @upper_camel) + '(i).Value)).ToList()'
     else if field | @is_array
         ret 'Enumerable.Range(0, raw.' + (field.name | @upper_camel) + 'Length).Select(i => raw.' + (field.name | @upper_camel) + '(i)).ToList()'
-    else if field.type | @is_enum
+    else if field | @is_enum
         $cast = namespace | array.add field.type | array.each @cs_replace_reserved_keyword | array.join '.'
         ret '(' + $cast + ')raw.' + (field.name | @upper_camel)
     else
@@ -101,7 +83,7 @@ namespace {{ namespace | cs_namespace }}
     public class {{ table.name }} : IFlatBufferEx
     {
 {{~ for field in table.fields ~}}
-        public {{ field | @cs_type }} {{ field.name | @upper_camel }} { get; set; }{{ if field.init != '' }} = {{ if field.type | @is_enum }}{{ namespace | @cs_namespace }}.{{ field.type }}.{{ end }}{{ field.init }};{{ end }}
+        public {{ field | @cs_type }} {{ field.name | @upper_camel }} { get; set; }{{ if field.init != '' }} = {{ if field | @is_enum }}{{ namespace | @cs_namespace }}.{{ field.type }}.{{ end }}{{ field.init }};{{ end }}
 {{~ end ~}}
 
         public {{ table.name }}()
