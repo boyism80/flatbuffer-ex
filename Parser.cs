@@ -6,7 +6,7 @@ namespace FlatBufferEx
 {
     public static class Parser
     {
-        private static readonly Regex FieldRegEx = new Regex(@"\s*(?<name>[_a-zA-Z][_a-zA-Z0-9]*)\s*:\s*(?<type>(?:\[?)[_a-zA-Z][_a-zA-Z0-9]*\]?)(?:\s*=\s*(?<init>.+?)\s*(?<deprecated>\(deprecated\))?)?;");
+        private static readonly Regex FieldRegEx = new Regex(@"\s*(?<name>[_a-zA-Z][_a-zA-Z0-9]*)\s*:\s*(?<type>(?:\[?)[_a-zA-Z][_a-zA-Z0-9\.]*\]?)(?:\s*=\s*(?<init>.+?)\s*(?<deprecated>\(deprecated\))?)?;");
         private static readonly Regex TableRegEx = new Regex(@"(?<type>struct|table)\s+(?<name>[_a-zA-Z][_a-zA-Z0-9]*)\s*{(?<contents>[\s\S]*?)}");
         private static readonly Regex ArrayRegEx = new Regex(@"\[(?<type>[a-zA-Z0-9]+)\]");
         private static readonly Regex EnumRegEx = new Regex(@"enum\s+(?<name>[_a-zA-Z][_a-zA-Z0-9]*)\s*:\s*(?<type>[a-zA-Z]+)\s+{\s*(?<contents>.+)\s*}");
@@ -22,6 +22,13 @@ namespace FlatBufferEx
                     continue;
 
                 var type = match.Groups["type"].Value;
+                var ns = null as List<string>;
+                if (type.Contains('.'))
+                {
+                    var splitted = type.Split('.').ToList();
+                    ns = splitted.GetRange(0, splitted.Count - 1).ToList();
+                    type = splitted.Last();
+                }
                 var matchArray = ArrayRegEx.Match(type);
 
                 yield return new Field
@@ -29,6 +36,7 @@ namespace FlatBufferEx
                     Name = match.Groups["name"].Value,
                     Type = matchArray.Success ? "array" : type,
                     Init = match.Groups["init"].Value,
+                    Namespace = ns,
                     ArrayElement = matchArray.Success ? new Field
                     { 
                         Name = null,
@@ -133,8 +141,8 @@ namespace FlatBufferEx
             foreach (var file in Directory.GetFiles(path, wildcard))
             {
                 var contents = File.ReadAllText(file);
-                var match = NamespaceRegEx.Match(contents);
-                contents = contents.Remove(match.Groups["name"].Index, match.Groups["name"].Value.Length).Insert(match.Groups["name"].Index, string.Join('.', match.Groups["name"].Value.Split('.').Select(x => 
+                var matchNamespace = NamespaceRegEx.Match(contents);
+                contents = contents.Remove(matchNamespace.Groups["name"].Index, matchNamespace.Groups["name"].Value.Length).Insert(matchNamespace.Groups["name"].Index, string.Join('.', matchNamespace.Groups["name"].Value.Split('.').Select(x => 
                 {
                     switch (lang)
                     {
@@ -145,6 +153,25 @@ namespace FlatBufferEx
                             return x;
                     }
                 }).Concat(new[] { "origin" })));
+
+                var matchFields = FieldRegEx.Matches(contents);
+                foreach (var match in matchFields.Cast<Match>().Reverse())
+                {
+                    var values = match.Groups["type"].Value.Split('.').ToList();
+                    if (values.Count == 1)
+                        continue;
+
+                    switch (lang)
+                    {
+                        case "c#":
+                            values = values.Select(x => ScribanEx.CsReplaceReservedKeyword(x)).ToList();
+                            break;
+                    }
+
+                    values.Insert(values.Count - 1, "origin");
+                    contents = contents.Remove(match.Groups["type"].Index, match.Groups["type"].Value.Length).Insert(match.Groups["type"].Index, string.Join('.', values));
+                }
+
                 var fileName = Path.GetFileName(file);
                 File.WriteAllText(Path.Join(to, Path.GetFileName(file)), contents);
                 yield return fileName;

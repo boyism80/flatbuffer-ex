@@ -5,6 +5,7 @@
         public string Name { get; set; }
         public string Type { get; set; }
         public string Init { get; set; }
+        public List<string> Namespace { get; set; }
         public Field ArrayElement { get; set; }
         public bool Deprecated { get; set; }
     }

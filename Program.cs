@@ -48,14 +48,21 @@ namespace FlatBufferExample
                 var p = new Process();
                 p.StartInfo.CreateNoWindow = true;
                 p.StartInfo.RedirectStandardOutput = true;
+                p.StartInfo.RedirectStandardError = true;
                 p.StartInfo.FileName = "cmd.exe";
                 p.StartInfo.WorkingDirectory = "flatbuffer";
                 p.StartInfo.Arguments = $"/c flatc.exe --{env} -o {lang} {string.Join(" ", originFiles)}";
                 p.Start();
 
-                while (!p.StandardOutput.EndOfStream)
-                { 
+                while (p.StandardOutput.Peek() > -1)
+                {
                     var line = await p.StandardOutput.ReadLineAsync();
+                    Console.WriteLine(line);
+                }
+
+                while (p.StandardError.Peek() > -1)
+                {
+                    var line = await p.StandardError.ReadLineAsync();
                     Console.WriteLine(line);
                 }
 
@@ -88,10 +95,10 @@ namespace FlatBufferExample
                 {
                     var infos = g.ToList();
                     obj = new ScribanEx();
-                    obj.Add("files", infos.Select(x => x.File).ToList());
+                    obj.Add("files", infos.Select(x => x.File).Distinct().ToList());
                     obj.Add("include_path", includePath);
                     obj.Add("namespace", g.Key.Split('.').ToList());
-                    obj.Add("includes", infos.SelectMany(x => x.Includes).ToList());
+                    obj.Add("includes", infos.SelectMany(x => x.Includes).Distinct().ToList());
                     obj.Add("tables", infos.SelectMany(x => x.Tables).ToList());
                     obj.Add("enums", infos.SelectMany(x => x.Enums).ToList());
 

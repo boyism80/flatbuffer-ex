@@ -46,29 +46,34 @@ func create_field(field)
 end
 
 func cpp_type(field)
+    $prefix = ''
+    if field.namespace
+        $prefix = (field.namespace | cpp_namespace) + '::'
+    end
+
     if field.type | @is_enum
-        ret field.type
+        ret $prefix + field.type
     end
 
     case field.type
         when "string"
-            ret "std::string"
+            ret $prefix + "std::string"
         when "byte"
-            ret "int8_t"
+            ret $prefix + "int8_t"
         when "ubyte"
-            ret "uint8_t"
+            ret $prefix + "uint8_t"
         when "short"
-            ret "int16_t"
+            ret $prefix + "int16_t"
         when "ushort"
-            ret "uint16_t"
+            ret $prefix + "uint16_t"
         when "uint"
-            ret "uint32_t"
+            ret $prefix + "uint32_t"
         when "ulong"
-            ret "unsigned long"
+            ret $prefix + "unsigned long"
         when "array"
-            ret "std::vector<" + (field.array_element | @cpp_type) + ">"
+            ret $prefix + "std::vector<" + (field.array_element | @cpp_type) + ">"
         else
-            ret field.type
+            ret $prefix + field.type
     end
 end
 

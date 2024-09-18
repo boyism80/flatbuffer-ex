@@ -22,19 +22,24 @@ func cs_namespace(namespace)
 end
 
 func cs_type(field)
+    $prefix = ''
+    if field.namespace
+        $prefix = (field.namespace | @cs_namespace) + '.'
+    end
+
     if field.type | @is_enum
-        ret field.type
+        ret $prefix + field.type
     end
 
     case field.type
         when "array"
-            ret "List<" + (field.array_element | @cs_type) + ">"
+            ret $prefix + "List<" + (field.array_element | @cs_type) + ">"
         when "ubyte"
-            ret "byte"
+            ret $prefix + "byte"
         when "byte"
-            ret "sbyte"
+            ret $prefix + "sbyte"
         else
-            ret field.type
+            ret $prefix + field.type
     end
 end
 
