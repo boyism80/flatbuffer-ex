@@ -15,17 +15,17 @@ namespace FlatBufferEx.Model
 
         public static bool IsEnum(object x)
         {
-            string name;
+            string type;
             List<string> referencedNamespace;
             switch (x)
             {
                 case ScriptObject so:
-                    name = so.GetSafeValue<string>("name");
+                    type = so.GetSafeValue<string>("type");
                     referencedNamespace = so.GetSafeValue<List<string>>("refer_namespace");
                     break;
 
                 case Model.Field f:
-                    name = f.Name;
+                    type = f.Type;
                     referencedNamespace = f.ReferNamespace;
                     break;
 
@@ -35,7 +35,7 @@ namespace FlatBufferEx.Model
 
             foreach (var e in _enums)
             {
-                if (name != e.Name)
+                if (type != e.Name)
                     continue;
 
                 var ns1 = string.Join('.', referencedNamespace ?? new List<string>());
