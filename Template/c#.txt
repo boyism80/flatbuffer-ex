@@ -38,9 +38,14 @@ func cs_type(field)
     end
 end
 
-func create_field(field, namespace)
+func create_field(field, custom_namespace)
     if field | @is_custom_table
         ret (field.name | @upper_camel) + '.Build(builder)'
+    end
+
+    if field.type | @is_enum
+        $cast = namespace | array.concat ['origin', field.type] | array.each @cs_replace_reserved_keyword | array.join '.'
+        ret '(' + $cast + ')' + (field.name | @upper_camel)
     end
 
     case field.type
@@ -48,9 +53,9 @@ func create_field(field, namespace)
             ret "builder.CreateString(" + (field.name | @upper_camel) + ")"
         when "array"
             if field | @is_custom_array
-                ret (namespace | @cs_namespace) + '.Create' + (field.name | @upper_camel) + 'Vector(builder, ' + (field.name | @upper_camel) + '.ConvertAll(x => x.Build(builder)).ToArray())'
+                ret (custom_namespace | @cs_namespace) + '.Create' + (field.name | @upper_camel) + 'Vector(builder, ' + (field.name | @upper_camel) + '.ConvertAll(x => x.Build(builder)).ToArray())'
             else
-                ret (namespace | @cs_namespace) + '.Create' + (field.name | @upper_camel) + 'Vector(builder, ' + (field.name | @upper_camel) + '.ToArray())'
+                ret (custom_namespace | @cs_namespace) + '.Create' + (field.name | @upper_camel) + 'Vector(builder, ' + (field.name | @upper_camel) + '.ToArray())'
             end
         else
             ret field.name | @upper_camel
@@ -64,6 +69,9 @@ func cs_init_value(field)
         ret 'Enumerable.Range(0, raw.' + (field.name | @upper_camel) + 'Length).Select(i => new ' + (field.array_element.type | @upper_camel) + '(raw.' + (field.name | @upper_camel) + '(i).Value)).ToList()'
     else if field | @is_array
         ret 'Enumerable.Range(0, raw.' + (field.name | @upper_camel) + 'Length).Select(i => raw.' + (field.name | @upper_camel) + '(i)).ToList()'
+    else if field.type | @is_enum
+        $cast = namespace | array.add field.type | array.each @cs_replace_reserved_keyword | array.join '.'
+        ret '(' + $cast + ')raw.' + (field.name | @upper_camel)
     else
         ret 'raw.' + (field.name | @upper_camel)
     end
