@@ -31,7 +31,7 @@ func create_field(field, custom_namespace)
     end
 
     if field | @is_enum
-        $cast = namespace | array.concat ['origin', field.type] | array.each @cs_replace_reserved_keyword | array.join '.'
+        $cast = field.refer_namespace | array.concat ['origin', field.type] | array.each @cs_replace_reserved_keyword | array.join '.'
         ret '(' + $cast + ')' + (field.name | @upper_camel)
     end
 
@@ -57,7 +57,7 @@ func cs_init_value(field)
     else if field | @is_array
         ret 'Enumerable.Range(0, raw.' + (field.name | @upper_camel) + 'Length).Select(i => raw.' + (field.name | @upper_camel) + '(i)).ToList()'
     else if field | @is_enum
-        $cast = namespace | array.add field.type | array.each @cs_replace_reserved_keyword | array.join '.'
+        $cast = field.refer_namespace | array.add field.type | array.each @cs_replace_reserved_keyword | array.join '.'
         ret '(' + $cast + ')raw.' + (field.name | @upper_camel)
     else
         ret 'raw.' + (field.name | @upper_camel)
