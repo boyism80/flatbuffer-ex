@@ -59,20 +59,29 @@ namespace FlatBufferEx.Model
         {
             var name = string.Empty;
             var type = string.Empty;
+            List<string> currentNamespace = null;
+            List<string> referencedNamespace = null;
             switch (x)
             {
                 case ScriptObject so:
                     name = so.GetSafeValue<string>("name");
                     type = so.GetSafeValue<string>("type");
+                    currentNamespace = so.GetSafeValue<List<string>>("namespace");
+                    referencedNamespace = so.GetSafeValue<List<string>>("refer_namespace");
                     break;
 
                 case Model.Field f:
                     name = f.Name;
                     type = f.Type;
+                    currentNamespace = f.Namespace;
+                    referencedNamespace = f.ReferNamespace;
                     break;
+
+                default:
+                    throw new InvalidOperationException();
             }
 
-            if (IsEnum(new Field { Name = name }))
+            if (IsEnum(new Field { Type = type, Namespace = currentNamespace, ReferNamespace = referencedNamespace }))
                 return false;
 
             if (IsPrimeType(type))

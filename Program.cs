@@ -19,7 +19,7 @@ namespace FlatBufferExample
             var path = @"D:\Users\CSHYEON\Data\git\game\c++\fb\protocol";
             var output = "output";
             var includePath = string.Empty;
-            var languages = "c#";
+            var languages = "c++";
             var options = new OptionSet
             {
                 { "p|path=", "input directory", v => path = v },
@@ -96,10 +96,13 @@ namespace FlatBufferExample
                 {
                     var infos = g.ToList();
                     obj = new ScribanEx(parseResultList);
-                    obj.Add("files", infos.Select(x => x.File).Distinct().ToList());
+                    var files = infos.Select(x => x.File).Distinct().ToList();
+                    obj.Add("files", files);
                     obj.Add("include_path", includePath);
                     obj.Add("namespace", g.Key.Split('.').ToList());
-                    obj.Add("includes", infos.SelectMany(x => x.Includes).Distinct().ToList());
+                    
+                    var includes = infos.SelectMany(x => x.Includes).Distinct().ToList();
+                    obj.Add("includes", IncludesToFiles(includes, parseResultList).Distinct().ToList());
                     obj.Add("tables", infos.SelectMany(x => x.Tables).ToList());
                     obj.Add("enums", infos.SelectMany(x => x.Enums).ToList());
 
@@ -124,6 +127,18 @@ namespace FlatBufferExample
                     case "c++":
                         File.WriteAllText(Path.Join(dir, "protocol_type.h"), Template.Parse(File.ReadAllText("Template/cpp_protocol_type.txt")).Render(ctx));
                         break;
+                }
+            }
+        }
+
+        private static IEnumerable<string> IncludesToFiles(List<string> includes, List<FlatBufferFileInfo> parseResultList)
+        {
+            foreach (var include in includes)
+            {
+                foreach (var parseResult in parseResultList)
+                {
+                    if (parseResult.File == include)
+                        yield return string.Join('.', parseResult.Namespace);
                 }
             }
         }

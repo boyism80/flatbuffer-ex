@@ -9,7 +9,11 @@ func create_field(field)
     end
 
     if field | @is_enum
-        $cast = namespace | array.add 'origin' | array.add field.type | array.join '::'
+        if (field.refer_namespace | array.size) > 0
+            $cast = field.refer_namespace | array.add 'origin' | array.add field.type | array.join '::'
+        else
+            $cast = namespace | array.add 'origin' | array.add field.type | array.join '::'
+        end
         ret '(' + $cast + ')this->' + field.name
     end
 
@@ -30,7 +34,7 @@ end
 func cpp_type(field)
     $prefix = ''
     if field.refer_namespace
-        $prefix = (field.refer_namespace | cpp_namespace) + '::'
+        $prefix = (field.refer_namespace | @cpp_namespace) + '::'
     end
 
     if field | @is_enum
@@ -39,21 +43,21 @@ func cpp_type(field)
 
     case field.type
         when "string"
-            ret $prefix + "std::string"
+            ret "std::string"
         when "byte"
-            ret $prefix + "int8_t"
+            ret "int8_t"
         when "ubyte"
-            ret $prefix + "uint8_t"
+            ret "uint8_t"
         when "short"
-            ret $prefix + "int16_t"
+            ret "int16_t"
         when "ushort"
-            ret $prefix + "uint16_t"
+            ret "uint16_t"
         when "uint"
-            ret $prefix + "uint32_t"
+            ret "uint32_t"
         when "ulong"
-            ret $prefix + "unsigned long"
+            ret "unsigned long"
         when "array"
-            ret $prefix + "std::vector<" + (field.array_element | @cpp_type) + ">"
+            ret "std::vector<" + (field.array_element | @cpp_type) + ">"
         else
             ret $prefix + field.type
     end
@@ -74,7 +78,11 @@ func cpp_right_value(field)
     else if field.type == 'string'
         ret 'raw.' + field.name + '()->c_str()'
     else if field | @is_enum
-        $cast = namespace | array.add field.type | array.join '::'
+        if (field.refer_namespace | array.size) > 0
+            $cast = field.refer_namespace | array.add field.type | array.join '::'
+        else
+            $cast = namespace | array.add field.type | array.join '::'
+        end
         ret '(' + $cast + ')raw.' + field.name + '()'
     else
         ret 'raw.' + field.name + '()'
