@@ -104,7 +104,7 @@ namespace {{ namespace | cs_namespace }}
 
 {{~ end ~}}
 {{~ for table in tables~}}
-    public class {{ table.name }} : IFlatBufferEx
+    public class {{ table.name }}{{ if table.root }} : IFlatBufferEx{{ end }}
     {
 {{~ for field in table.fields ~}}
         public {{ field | @cs_type }} {{ field.name | @upper_camel }} { get; set; }{{ field | @cs_init_rvalue }}
