@@ -7,6 +7,7 @@ namespace Google.FlatBuffers
 }
 
 {{~ for $pair in protocol_types ~}}
+{{~ if ($pair.value | array.size) > 0~ }}
 namespace {{ $pair.key | array.each @cs_replace_reserved_keyword | array.join '.' }}
 {
     public enum FlatBufferProtocolType
@@ -41,4 +42,5 @@ namespace {{ $pair.key | array.each @cs_replace_reserved_keyword | array.join '.
         }
     }
 }
+{{~ end ~}}
 {{~ end ~}}

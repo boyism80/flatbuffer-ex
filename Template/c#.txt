@@ -31,7 +31,6 @@ func create_field(field, custom_namespace)
     end
 
     if field | @is_enum
-        $cast = ''
         if (field.refer_namespace | array.size) > 0
             $cast = field.refer_namespace | array.concat ['origin', field.type] | array.each @cs_replace_reserved_keyword | array.join '.'
         else
@@ -62,7 +61,6 @@ func cs_init_value(field)
     else if field | @is_array
         ret 'Enumerable.Range(0, raw.' + (field.name | @upper_camel) + 'Length).Select(i => raw.' + (field.name | @upper_camel) + '(i)).ToList()'
     else if field | @is_enum
-        $cast = ''
         if (field.refer_namespace | array.size) > 0
             $cast = field.refer_namespace | array.add field.type | array.each @cs_replace_reserved_keyword | array.join '.'
         else
@@ -71,6 +69,22 @@ func cs_init_value(field)
         ret '(' + $cast + ')raw.' + (field.name | @upper_camel)
     else
         ret 'raw.' + (field.name | @upper_camel)
+    end
+end
+
+func cs_init_rvalue(field)
+    $prefix = ' = '
+    $suffix = ';'
+    if field.init == ''
+        if field.type == 'string'
+            ret $prefix + 'string.Empty' + $suffix
+        else
+            ret ''
+        end
+    else if field | @is_enum
+        ret $prefix + (namespace | @cs_namespace) + '.' + field.type + '.' + field.init + $suffix
+    else
+        ret $prefix + field.init + $suffix
     end
 end
 ~}}
@@ -93,7 +107,7 @@ namespace {{ namespace | cs_namespace }}
     public class {{ table.name }} : IFlatBufferEx
     {
 {{~ for field in table.fields ~}}
-        public {{ field | @cs_type }} {{ field.name | @upper_camel }} { get; set; }{{ if field.init != '' }} = {{ if field | @is_enum }}{{ namespace | @cs_namespace }}.{{ field.type }}.{{ end }}{{ field.init }};{{ end }}
+        public {{ field | @cs_type }} {{ field.name | @upper_camel }} { get; set; }{{ field | @cs_init_rvalue }}
 {{~ end ~}}
 
         public {{ table.name }}()
