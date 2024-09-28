@@ -2,6 +2,7 @@ namespace Google.FlatBuffers
 {
     public interface IFlatBufferEx
     {
+        int ProtocolType { get; }
         byte[] Serialize();
     }
 }
@@ -25,17 +26,6 @@ namespace {{ $pair.key | array.each @cs_replace_reserved_keyword | array.join '.
             {
 {{~ for type in $pair.value ~}}
                 FlatBufferProtocolType.{{ type }} => typeof({{ $pair.key | array.each @cs_replace_reserved_keyword | array.join '.' }}.{{ type }}),
-{{~ end ~}}
-                _ => throw new ArgumentException(),
-            };
-        }
-
-        public static FlatBufferProtocolType GetProtocolEnum<T>(T protocol)
-        {
-            return protocol switch
-            {
-{{~ for type in $pair.value ~}}
-                {{ $pair.key | array.each @cs_replace_reserved_keyword | array.join '.' }}.{{ type }} => FlatBufferProtocolType.{{ type }},
 {{~ end ~}}
                 _ => throw new ArgumentException(),
             };
