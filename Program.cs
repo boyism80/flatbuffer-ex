@@ -101,7 +101,7 @@ namespace FlatBufferExample
                     obj.Add("namespace", g.Key.Split('.').ToList());
                     
                     var includes = infos.SelectMany(x => x.Includes).Distinct().ToList();
-                    obj.Add("includes", IncludesToFiles(includes, parseResultList).Distinct().ToList());
+                    obj.Add("includes", includes.Distinct().ToList());
                     obj.Add("tables", infos.SelectMany(x => x.Tables).ToList());
                     obj.Add("enums", infos.SelectMany(x => x.Enums).ToList());
 
