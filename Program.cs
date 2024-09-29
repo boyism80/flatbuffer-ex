@@ -5,7 +5,6 @@ using NDesk.Options;
 using Scriban;
 using System.Diagnostics;
 using System.IO.Compression;
-using System.Xml.Linq;
 
 namespace FlatBufferExample
 {
@@ -19,7 +18,7 @@ namespace FlatBufferExample
             var path = @"D:\Users\CSHYEON\Data\git\game\c++\fb\protocol";
             var output = "output";
             var includePath = string.Empty;
-            var languages = "c++";
+            var languages = "c++|c#";
             var options = new OptionSet
             {
                 { "p|path=", "input directory", v => path = v },
@@ -108,8 +107,12 @@ namespace FlatBufferExample
 
                     ctx = new TemplateContext();
                     ctx.PushGlobal(obj);
-                    File.WriteAllText(Path.Join(dir, $"{g.Key}{ext}"), template.Render(ctx));
 
+                    var dest = Path.Join(dir, $"{Path.Join(g.Key.Split('.'))}{ext}");
+                    if (!Directory.Exists(Path.GetDirectoryName(dest)))
+                        Directory.CreateDirectory(Path.GetDirectoryName(dest));
+
+                    File.WriteAllText(dest, template.Render(ctx));
                     protocolTypes.Add(g.Key, infos.SelectMany(x => x.Tables).Where(x => x.Root).Select(x => x.Name).ToList());
                 }
 
