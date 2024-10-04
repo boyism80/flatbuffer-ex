@@ -117,8 +117,10 @@ enum class {{ enum.name}} : {{ {type: enum.type } | @cpp_type }}
 {{~ for table in tables ~}}
 class {{ table.name }}
 {
+{{~ if table.root ~}}
 public:
     static inline {{ namespace | array.join '::' }}::FlatBufferProtocolType FlatBufferProtocolType = {{ namespace | array.join '::' }}::FlatBufferProtocolType::{{ table.name }};
+{{~ end ~}}
 
 public:
 {{~ for field in table.fields ~}}
