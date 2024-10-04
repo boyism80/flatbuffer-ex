@@ -28,10 +28,12 @@ namespace FlatBufferExample
             };
             options.Parse(args);
 
+#if !DEBUG
             await Http.DownloadFile("https://github.com/google/flatbuffers/releases/download/v24.3.25/Windows.flatc.binary.zip", "flatbuffer.zip");
             if (Directory.Exists("flatbuffer"))
                 Directory.Delete("flatbuffer", true);
             ZipFile.ExtractToDirectory("flatbuffer.zip", "flatbuffer");
+#endif
 
             foreach (var lang in languages.Split('|').Select(x => x.Trim().ToLower()).Distinct().ToHashSet())
             {

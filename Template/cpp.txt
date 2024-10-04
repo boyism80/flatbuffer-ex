@@ -1,6 +1,6 @@
 {{~
 func cpp_namespace(namespace)
-    namespace | array.join '::'
+    ret namespace | array.join '::'
 end
 
 func create_field(field)
