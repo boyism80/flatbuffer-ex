@@ -106,7 +106,9 @@ namespace {{ namespace | cs_namespace }}
 {{~ for table in tables~}}
     public class {{ table.name }}{{ if table.root }} : IFlatBufferEx{{ end }}
     {
+{{~ if table.root ~}}
         public int ProtocolType => (int)FlatBufferProtocolType.{{ table.name }};
+{{~ end ~}}
 {{~ for field in table.fields ~}}
         public {{ field | @cs_type }} {{ field.name | @upper_camel }} { get; set; }{{ field | @cs_init_rvalue }}
 {{~ end ~}}
