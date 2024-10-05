@@ -158,7 +158,7 @@ public:
 
 {{~ for field in table.fields | array.filter @is_custom_array ~}}
 {{ if for.first }}private:{{ end }}
-    auto Create{{ field.name | string.capitalize }}(flatbuffers::FlatBufferBuilder& builder)
+    auto Create{{ field.name | string.capitalize }}(flatbuffers::FlatBufferBuilder& builder) const
     {
 {{~ if field.array_element.refer_namespace ~}}
         auto result = std::vector<flatbuffers::Offset<{{ cpp_namespace(field.array_element.refer_namespace | array.add 'origin') }}::{{ {type: field.array_element.type} | @cpp_type }}>>();
