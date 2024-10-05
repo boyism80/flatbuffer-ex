@@ -133,7 +133,7 @@ namespace {{ namespace | cs_namespace }}
 {{~ if (table.fields | array.size) > 0 ~}}
             return {{ namespace | array.add 'origin' | @cs_namespace }}.{{ table.name }}.Create{{ table.name }}(builder{{~ if (table.fields | array.size) > 0~}},
 {{~ for field in table.fields ~}}
-                {{ create_field field (namespace | array.add table.name) }}{{ if !for.last}},
+                {{ create_field field (namespace | array.add 'origin' | array.add table.name) }}{{ if !for.last}},
 {{ end }}{{~ end ~}}{{~ end ~}});
 {{~ else ~}}
             {{ namespace | array.add 'origin' | @cs_namespace }}.{{ table.name }}.Start{{ table.name }}(builder);

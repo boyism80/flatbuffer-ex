@@ -7,11 +7,24 @@ namespace FlatBufferEx
     {
         private static readonly Regex FieldRegEx = new Regex(@"\s*(?<name>[_a-zA-Z][_a-zA-Z0-9]*)\s*:\s*(?<type>(?:\[?)[_a-zA-Z][_a-zA-Z0-9\.]*\]?)(?:\s*=\s*(?<init>.+?)\s*(?<deprecated>\(deprecated\))?)?;");
         private static readonly Regex TableRegEx = new Regex(@"(?<type>struct|table)\s+(?<name>[_a-zA-Z][_a-zA-Z0-9]*)\s*{(?<contents>[\s\S]*?)}");
-        private static readonly Regex ArrayRegEx = new Regex(@"\[(?<type>[a-zA-Z0-9]+)\]");
+        private static readonly Regex ArrayRegEx = new Regex(@"\[(?<type>[a-zA-Z0-9\.]+)\]");
         private static readonly Regex EnumRegEx = new Regex(@"enum\s+(?<name>[_a-zA-Z][_a-zA-Z0-9]*)\s*:\s*(?<type>[a-zA-Z]+)\s+{\s*(?<contents>.+)\s*}");
         private static readonly Regex NamespaceRegEx = new Regex(@"namespace\s+(?<name>[_a-zA-Z][_a-zA-Z0-9\.]*);");
         private static readonly Regex IncludeRegEx = new Regex(@"include\s*""(?<file>.+)\.fbs""\s*;");
         private static readonly Regex RootTypeRegEx = new Regex(@"root_type\s+(?<name>[_a-zA-Z][_a-zA-Z0-9\.]*);");
+
+        private static (List<string> Namespace, string Type) SplitNamespace(string value)
+        {
+            if (value.Contains('.'))
+            {
+                var splitted = value.Split('.').ToList();
+                return (splitted.GetRange(0, splitted.Count - 1).ToList(), splitted.Last());
+            }
+            else
+            {
+                return (null, value);
+            }
+        }
 
         private static IEnumerable<Field> ParseFields(string contents, List<string> ns)
         {
@@ -21,22 +34,13 @@ namespace FlatBufferEx
                     continue;
 
                 var type = match.Groups["type"].Value;
-                var referencedNamespace = null as List<string>;
-                if (type.Contains('.'))
-                {
-                    var splitted = type.Split('.').ToList();
-                    referencedNamespace = splitted.GetRange(0, splitted.Count - 1).ToList();
-                    type = splitted.Last();
-                }
                 var matchArray = ArrayRegEx.Match(type);
 
-                yield return new Field
+                var field = new Field
                 { 
                     Name = match.Groups["name"].Value,
-                    Type = matchArray.Success ? "array" : type,
                     Init = match.Groups["init"].Value,
                     Namespace = ns,
-                    ReferNamespace = referencedNamespace,
                     ArrayElement = matchArray.Success ? new Field
                     { 
                         Name = null,
@@ -47,6 +51,26 @@ namespace FlatBufferEx
                     } : null,
                     Deprecated = !string.IsNullOrEmpty(match.Groups["deprecated"].Value)
                 };
+
+                if (matchArray.Success)
+                {
+                    field.Type = "array";
+                    field.Namespace = null;
+                    field.ArrayElement = new Field
+                    {
+                        Name = null,
+                        ArrayElement = null,
+                        Init = null,
+                        Deprecated = false,
+                    };
+                    (field.ArrayElement.ReferNamespace, field.ArrayElement.Type) = SplitNamespace(matchArray.Groups["type"].Value);
+                }
+                else
+                {
+                    (field.ReferNamespace, field.Type) = SplitNamespace(type);
+                }
+
+                yield return field;
             }
         }
 
