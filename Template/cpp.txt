@@ -160,7 +160,11 @@ public:
 {{ if for.first }}private:{{ end }}
     auto Create{{ field.name | string.capitalize }}(flatbuffers::FlatBufferBuilder& builder)
     {
+{{~ if field.array_element.refer_namespace ~}}
+        auto result = std::vector<flatbuffers::Offset<{{ cpp_namespace(field.array_element.refer_namespace | array.add 'origin') }}::{{ {type: field.array_element.type} | @cpp_type }}>>();
+{{~ else ~}}
         auto result = std::vector<flatbuffers::Offset<{{ cpp_namespace(namespace | array.add 'origin') }}::{{ field.array_element | @cpp_type }}>>();
+{{~ end ~}}
         for(auto& x : this->{{ field.name }})
         {
             result.push_back(x.Build(builder));
