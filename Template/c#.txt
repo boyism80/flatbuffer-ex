@@ -57,7 +57,7 @@ func cs_init_value(field)
     if field | @is_custom_table
         ret 'new ' + field.type + '(raw.' + (field.name | @upper_camel) + '.Value)'
     else if field | @is_custom_array
-        ret 'Enumerable.Range(0, raw.' + (field.name | @upper_camel) + 'Length).Select(i => new ' + (field.array_element.type | @upper_camel) + '(raw.' + (field.name | @upper_camel) + '(i).Value)).ToList()'
+        ret 'Enumerable.Range(0, raw.' + (field.name | @upper_camel) + 'Length).Select(i => new ' + field.array_element.type + '(raw.' + (field.name | @upper_camel) + '(i).Value)).ToList()'
     else if field | @is_array
         ret 'Enumerable.Range(0, raw.' + (field.name | @upper_camel) + 'Length).Select(i => raw.' + (field.name | @upper_camel) + '(i)).ToList()'
     else if field | @is_enum
