@@ -76,7 +76,7 @@ func cpp_right_value(field)
     if field | @is_custom_table
         ret '*raw.' + field.name + '()'
     else if field.type == 'string'
-        ret 'raw.' + field.name + '()->c_str()'
+        ret 'raw.' + field.name + '() != nullptr ? raw.' + field.name + '()->c_str() : ""'
     else if field | @is_enum
         if (field.refer_namespace | array.size) > 0
             $cast = field.refer_namespace | array.add field.type | array.join '::'
