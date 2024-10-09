@@ -1,0 +1,36 @@
+{{~
+func generate_type(field)
+  type = field.type
+  if field.nullable
+    type = 'nullable_' + type
+  end
+
+  $result = ''
+  if field.type == 'array'
+    $result = '[' + generate_type(field.array_element) + ']'
+  else
+    if field.refer_namespace
+      $result = (field.refer_namespace | array.add 'raw' | array.add type | array.join '.')
+    else
+      $result = type
+    end
+  end
+
+  ret $result
+end
+~}}
+{{~ if contains_nullable_field ~}}
+include "nullable.fbs";
+{{~ end ~}}
+{{~ for reference_file in reference_files ~}}
+include "{{ reference_file }}.fbs";
+{{~ end ~}}
+
+namespace {{ scope.namespace | array.add 'raw' | array.join '.' }};
+
+table {{ name }} {
+{{~ for field in fields ~}}
+  {{ field.name }}: {{ field | generate_type }};
+{{~ end ~}}
+}
+root_type {{ name }};

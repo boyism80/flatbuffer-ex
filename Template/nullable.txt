@@ -1,0 +1,5 @@
+{{~ for type in ['byte', 'ubyte', 'bool', 'short', 'ushort', 'int', 'uint', 'float', 'long', 'ulong', 'double'] ~}}
+table nullable_{{ type }} {
+  value: {{ type }};
+}
+{{~ end ~}}

@@ -1,0 +1,8 @@
+namespace {{ scope.namespace | array.add 'raw' | array.join '.' }};
+
+enum {{ name }} : {{ type }}
+{
+{{~ for value in values ~}}
+	{{ value }}{{ if !for.last }},{{ end }}
+{{~ end ~}}
+}

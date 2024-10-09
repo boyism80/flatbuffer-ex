@@ -1,6 +1,7 @@
 ﻿using FlatBufferEx;
 using FlatBufferEx.Model;
 using FlatBufferEx.Util;
+using Google.FlatBuffers;
 using NDesk.Options;
 using Scriban;
 using System.Diagnostics;
@@ -35,11 +36,30 @@ namespace FlatBufferExample
             ZipFile.ExtractToDirectory("flatbuffer.zip", "flatbuffer");
 #endif
 
+            var context = Parser.Parse(path, "*.fbs");
+            if (Directory.Exists("raw"))
+                Directory.Delete("raw", true);
+            Directory.CreateDirectory("raw");
+            foreach (var scope in context.Scopes)
+            {
+                foreach (var table in scope.Tables)
+                {
+                    var contents = Generator.RawFlatBufferTableContents(table);
+                    File.WriteAllText(Path.Combine("raw", $"{string.Join('.', scope.Namespace)}.{table.Name.ToLower()}.fbs"), contents);
+                }
+
+                foreach (var e in scope.Enums)
+                {
+                    var contents = Generator.RawFlatBufferEnumContents(e);
+                    File.WriteAllText(Path.Combine("raw", $"{string.Join('.', scope.Namespace)}.{e.Name.ToLower()}.fbs"), contents);
+                }
+            }
+            File.WriteAllText(Path.Combine("raw", "nullable.fbs"), Template.Parse(File.ReadAllText("Template/nullable.txt")).Render());
+
+            var flatbufferRawFiles = Directory.GetFiles("raw", "*.fbs").Select(f => Path.Join(Directory.GetCurrentDirectory(), f));
             foreach (var lang in languages.Split('|').Select(x => x.Trim().ToLower()).Distinct().ToHashSet())
             {
-                var originFiles = Parser.CreateOriginTempFiles(path, "flatbuffer", "*.fbs", lang).ToList();
-
-                var env = lang switch 
+                var env = lang switch
                 {
                     "c++" => "cpp",
                     "c#" => "csharp",
@@ -52,7 +72,7 @@ namespace FlatBufferExample
                 p.StartInfo.RedirectStandardError = true;
                 p.StartInfo.FileName = "cmd.exe";
                 p.StartInfo.WorkingDirectory = "flatbuffer";
-                p.StartInfo.Arguments = $"/c flatc.exe --{env} -o {lang} {string.Join(" ", originFiles)}";
+                p.StartInfo.Arguments = $"/c flatc.exe --{env} -I {Path.Join(Directory.GetCurrentDirectory(), "raw")} -o {lang} {string.Join(" ", flatbufferRawFiles)}";
                 p.Start();
 
                 while (p.StandardOutput.Peek() > -1)
@@ -72,7 +92,7 @@ namespace FlatBufferExample
 
                 var template = lang switch
                 {
-                    "c++" => Template.Parse(File.ReadAllText("Template/cpp.txt")),
+                    "c++" => Template.Parse(File.ReadAllText("Template/cpp_new.txt")),
                     "c#" => Template.Parse(File.ReadAllText("Template/c#.txt")),
                     _ => throw new ArgumentException()
                 };
@@ -89,51 +109,117 @@ namespace FlatBufferExample
                     Directory.Delete(dir, true);
                 Directory.CreateDirectory(dir);
 
-                var protocolTypes = new Dictionary<string, List<string>>();
-                var parseResultList = Parser.Parse(path, "*.fbs").ToList();
-                var obj = new ScribanEx(parseResultList);
+                var obj = new ScribanEx();
+                obj.Add("context", context);
                 var ctx = new TemplateContext();
-                foreach (var g in parseResultList.GroupBy(x => string.Join(".", x.Namespace)))
-                {
-                    var infos = g.ToList();
-                    obj = new ScribanEx(parseResultList);
-                    var files = infos.Select(x => x.File).Distinct().ToList();
-                    obj.Add("files", files);
-                    obj.Add("include_path", includePath);
-                    obj.Add("namespace", g.Key.Split('.').ToList());
-                    
-                    var includes = infos.SelectMany(x => x.Includes).Distinct().ToList();
-                    obj.Add("includes", includes.Distinct().ToList());
-                    obj.Add("tables", infos.SelectMany(x => x.Tables).ToList());
-                    obj.Add("enums", infos.SelectMany(x => x.Enums).ToList());
-
-                    ctx = new TemplateContext();
-                    ctx.PushGlobal(obj);
-
-                    var dest = Path.Join(dir, $"{Path.Join(g.Key.Split('.'))}{ext}");
-                    if (!Directory.Exists(Path.GetDirectoryName(dest)))
-                        Directory.CreateDirectory(Path.GetDirectoryName(dest));
-
-                    File.WriteAllText(dest, template.Render(ctx));
-                    protocolTypes.Add(g.Key, infos.SelectMany(x => x.Tables).Where(x => x.Root).Select(x => x.Name).ToList());
-                }
-
-                obj = new ScribanEx(parseResultList);
-                obj.Add("protocol_types", protocolTypes.ToDictionary(x => x.Key.Split('.').ToList(), x => x.Value.OrderBy(x => x).ToList()));
-
-                ctx = new TemplateContext();
                 ctx.PushGlobal(obj);
-                switch (lang)
-                {
-                    case "c#":
-                        File.WriteAllText(Path.Join(dir, "IFlatBufferEx.cs"), Template.Parse(File.ReadAllText("Template/c#_root.txt")).Render(ctx));
-                        break;
 
-                    case "c++":
-                        File.WriteAllText(Path.Join(dir, "protocol_type.h"), Template.Parse(File.ReadAllText("Template/cpp_protocol_type.txt")).Render(ctx));
-                        break;
-                }
+                var dest = Path.Join(dir, $"protocol{ext}");
+                if (!Directory.Exists(Path.GetDirectoryName(dest)))
+                    Directory.CreateDirectory(Path.GetDirectoryName(dest));
+
+                File.WriteAllText(dest, template.Render(ctx));
             }
+
+            //foreach (var lang in languages.Split('|').Select(x => x.Trim().ToLower()).Distinct().ToHashSet())
+            //{
+            //    var originFiles = Parser.CreateOriginTempFiles(path, "flatbuffer", "*.fbs", lang).ToList();
+
+            //    var env = lang switch 
+            //    {
+            //        "c++" => "cpp",
+            //        "c#" => "csharp",
+            //        _ => throw new ArgumentException()
+            //    };
+
+            //    var p = new Process();
+            //    p.StartInfo.CreateNoWindow = true;
+            //    p.StartInfo.RedirectStandardOutput = true;
+            //    p.StartInfo.RedirectStandardError = true;
+            //    p.StartInfo.FileName = "cmd.exe";
+            //    p.StartInfo.WorkingDirectory = "flatbuffer";
+            //    p.StartInfo.Arguments = $"/c flatc.exe --{env} -o {lang} {string.Join(" ", originFiles)}";
+            //    p.Start();
+
+            //    while (p.StandardOutput.Peek() > -1)
+            //    {
+            //        var line = await p.StandardOutput.ReadLineAsync();
+            //        Console.WriteLine(line);
+            //    }
+
+            //    while (p.StandardError.Peek() > -1)
+            //    {
+            //        var line = await p.StandardError.ReadLineAsync();
+            //        Console.WriteLine(line);
+            //    }
+
+            //    if (p.ExitCode != 0)
+            //        Environment.Exit(p.ExitCode);
+
+            //    var template = lang switch
+            //    {
+            //        "c++" => Template.Parse(File.ReadAllText("Template/cpp.txt")),
+            //        "c#" => Template.Parse(File.ReadAllText("Template/c#.txt")),
+            //        _ => throw new ArgumentException()
+            //    };
+
+            //    var ext = lang switch
+            //    {
+            //        "c++" => ".h",
+            //        "c#" => ".cs",
+            //        _ => throw new ArgumentException()
+            //    };
+
+            //    var dir = Path.Join(output, lang);
+            //    if (Directory.Exists(dir))
+            //        Directory.Delete(dir, true);
+            //    Directory.CreateDirectory(dir);
+
+            //    var protocolTypes = new Dictionary<string, List<string>>();
+            //    var parseResultList = Parser.Parse(path, "*.fbs").ToList();
+            //    var obj = new ScribanEx(parseResultList);
+            //    var ctx = new TemplateContext();
+            //    foreach (var g in parseResultList.GroupBy(x => string.Join(".", x.Namespace)))
+            //    {
+            //        var infos = g.ToList();
+            //        obj = new ScribanEx(parseResultList);
+            //        var files = infos.Select(x => x.File).Distinct().ToList();
+            //        obj.Add("files", files);
+            //        obj.Add("include_path", includePath);
+            //        obj.Add("namespace", g.Key.Split('.').ToList());
+
+            //        var includes = infos.SelectMany(x => x.Includes).Distinct().ToList();
+            //        obj.Add("includes", includes.Distinct().ToList());
+            //        obj.Add("tables", infos.SelectMany(x => x.Tables).ToList());
+            //        obj.Add("enums", infos.SelectMany(x => x.Enums).ToList());
+
+            //        ctx = new TemplateContext();
+            //        ctx.PushGlobal(obj);
+
+            //        var dest = Path.Join(dir, $"{Path.Join(g.Key.Split('.'))}{ext}");
+            //        if (!Directory.Exists(Path.GetDirectoryName(dest)))
+            //            Directory.CreateDirectory(Path.GetDirectoryName(dest));
+
+            //        File.WriteAllText(dest, template.Render(ctx));
+            //        protocolTypes.Add(g.Key, infos.SelectMany(x => x.Tables).Where(x => x.Root).Select(x => x.Name).ToList());
+            //    }
+
+            //    obj = new ScribanEx(parseResultList);
+            //    obj.Add("protocol_types", protocolTypes.ToDictionary(x => x.Key.Split('.').ToList(), x => x.Value.OrderBy(x => x).ToList()));
+
+            //    ctx = new TemplateContext();
+            //    ctx.PushGlobal(obj);
+            //    switch (lang)
+            //    {
+            //        case "c#":
+            //            File.WriteAllText(Path.Join(dir, "IFlatBufferEx.cs"), Template.Parse(File.ReadAllText("Template/c#_root.txt")).Render(ctx));
+            //            break;
+
+            //        case "c++":
+            //            File.WriteAllText(Path.Join(dir, "protocol_type.h"), Template.Parse(File.ReadAllText("Template/cpp_protocol_type.txt")).Render(ctx));
+            //            break;
+            //    }
+            //}
         }
 
         private static IEnumerable<string> IncludesToFiles(List<string> includes, List<FlatBufferFileInfo> parseResultList)

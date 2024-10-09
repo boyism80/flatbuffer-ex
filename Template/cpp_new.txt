@@ -1,0 +1,145 @@
+{{~
+func cpp_type(field)
+    $result = 'qweqwe'
+    case field.type
+        when "string"
+            $result = "std::string"
+        when "byte"
+            $result = "int8_t"
+        when "ubyte"
+            $result = "uint8_t"
+        when "short"
+            $result = "int16_t"
+        when "ushort"
+            $result = "uint16_t"
+        when "uint"
+            $result = "uint32_t"
+        when "ulong"
+            $result = "unsigned long"
+        when "array"
+            $result = "std::vector<" + (field.array_element | @cpp_type) + ">"
+        else
+            $result = field.type
+    end
+
+    if field.refer_namespace
+        $result = (field.refer_namespace | array.add $result | array.join '::')
+    else if field.is_custom_class
+        $result = (field.scope.namespace | array.add $result | array.join '::')
+    end
+
+    if field.is_nullable
+        $result = 'std::optional<' + $result + '>'
+    end
+
+    ret $result
+end
+
+func cpp_rvalue_type(field)
+    $result = field | @cpp_type
+
+    if field.type == 'string'
+        $result = 'const ' + $result + '&'
+    else if field.is_nullable
+        $result = 'const ' + $result + '&'
+    end
+
+    ret $result
+end
+
+func cpp_builder_param(field)
+    $result = ''
+    if field.type == 'string'
+        $result = 'builder.CreateString(this->' + field.name + ')'
+    else if field.is_custom_class
+        $result = 'this->' + field.name + '.Build(builder)'
+    else
+        $result = 'this->' + field.name
+    end
+
+    if field.is_nullable
+        $result = 'this->' + field.name + '.has_value() ? ' + $result + '.value() : nullptr'
+    end
+
+    ret $result
+end
+~}}
+#ifndef __PROTOCOL_H__
+#define __PROTOCOL_H__
+
+#include <string>
+#include <optional>
+{{~ for scope in context.scopes ~}}
+{{~ for enum in scope.enums ~}}
+#include <{{ scope.namespace | array.join '.' | string.downcase }}.{{ enum.name | string.downcase }}_generated.h>
+{{~ end ~}}
+{{~ for table in scope.tables ~}}
+#include <{{ scope.namespace | array.join '.' | string.downcase }}.{{ table.name | string.downcase }}_generated.h>
+{{~ end ~}}
+{{~ end ~}}
+
+{{~ for scope in context.scopes ~}}
+{{ for n in scope.namespace }}namespace {{ n }} { {{ end }}
+{{~ for table in scope.tables ~}}
+class {{ table.name }}
+{
+{{~ if (table.fields | array.size) > 0 ~}}
+public:
+{{~ for field in table.fields ~}}
+    {{ field | @cpp_type }} {{ field.name }};
+{{~ end ~}}
+{{~ end ~}}
+
+public:
+    {{ table.name }}()
+    { }
+
+    {{ table.name }}(const {{ table.name }}& x)
+{{~ if (table.fields | array.size) > 0 ~}}
+        : {{ for field in table.fields }}{{ field.name }}(x.{{ field.name }}){{ if !for.last }}, {{end }}{{ end }}
+{{~ end ~}}
+    { }
+
+{{~ if (table.fields | array.size) > 0 ~}}
+    {{ table.name }}({{ for field in table.fields }}{{ field | @cpp_rvalue_type }} {{ field.name }}{{ if !for.last }}, {{end }}{{ end }})
+        : {{ for field in table.fields }}{{ field.name }}({{ field.name }}){{ if !for.last }}, {{ end }}{{ end }}
+    { }
+{{~ end ~}}
+
+    {{ table.name }}(const {{ scope.namespace | array.add 'raw' | array.add table.name | array.join '::' }}& raw)
+{{~ if (table.fields | array.size) > 0~}}
+        : {{ for field in table.fields }}{{ field.name }}(raw.{{ field.name }}()){{ if !for.last }}, {{ end }}{{ end }}
+{{~ end ~}}
+    {
+    }
+
+public:
+    auto Build(flatbuffers::FlatBufferBuilder& builder) const
+    {
+        return {{ scope.namespace | array.add 'raw' | array.add 'Create' + table.name | array.join '::' }}(builder{{ if (table.fields | array.size) > 0 }},
+{{~ for field in table.fields ~}}
+            {{ field | @cpp_builder_param }}{{ if !for.last }},
+{{ end }}{{~ end ~}}{{ end }});
+    }
+
+    std::vector<uint8_t> Serialize() const
+    {
+        auto builder = flatbuffers::FlatBufferBuilder();
+        builder.Finish(this->Build(builder));
+        auto size = builder.GetSize();
+        auto result = std::vector<uint8_t>(size);
+        std::memcpy(result.data(), builder.GetBufferPointer(), size);
+        return result;
+    }
+
+    static {{ table.name }} Deserialize(const uint8_t* bytes)
+    {
+        auto raw = {{ scope.namespace | array.add 'raw' | array.add 'Get' + table.name | array.join '::' }}(bytes);
+        return {{ table.name }}(*raw);
+    }
+};
+{{~ end ~}}
+{{ for n in scope.namespace }}} {{ end }}
+{{~ end ~}}
+
+#endif
