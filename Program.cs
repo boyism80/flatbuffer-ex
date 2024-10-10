@@ -54,7 +54,12 @@ namespace FlatBufferExample
                     File.WriteAllText(Path.Combine("raw", $"{string.Join('.', scope.Namespace)}.{e.Name.ToLower()}.fbs"), contents);
                 }
             }
-            File.WriteAllText(Path.Combine("raw", "nullable.fbs"), Template.Parse(File.ReadAllText("Template/nullable.txt")).Render());
+
+            foreach (var nullableField in context.NullableFields)
+            {
+                var fname = $"nullable_{string.Join('_', nullableField.FixedNamespace.Concat(new[] { nullableField.Type }))}.fbs".ToLower();
+                File.WriteAllText(Path.Combine("raw", fname), Template.Parse(File.ReadAllText("Template/nullable.txt")).Render(new { Field = nullableField }));
+            }
 
             var flatbufferRawFiles = Directory.GetFiles("raw", "*.fbs").Select(f => Path.Join(Directory.GetCurrentDirectory(), f));
             foreach (var lang in languages.Split('|').Select(x => x.Trim().ToLower()).Distinct().ToHashSet())

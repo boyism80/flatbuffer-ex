@@ -1,8 +1,9 @@
 {{~
 func generate_type(field)
   type = field.type
-  if field.nullable
-    type = 'nullable_' + type
+  if field.is_nullable
+    type = 'nullable_' + (field.fixed_namespace | array.add type | array.join ('_') | string.downcase)
+    type = 'nullable.' + type
   end
 
   $result = ''
@@ -10,7 +11,11 @@ func generate_type(field)
     $result = '[' + generate_type(field.array_element) + ']'
   else
     if field.refer_namespace
-      $result = (field.refer_namespace | array.add 'raw' | array.add type | array.join '.')
+      if field.is_nullable
+        $result = type
+      else
+        $result = (field.refer_namespace | array.add 'raw' | array.add type | array.join '.')
+      end
     else
       $result = type
     end
@@ -19,8 +24,8 @@ func generate_type(field)
   ret $result
 end
 ~}}
-{{~ if contains_nullable_field ~}}
-include "nullable.fbs";
+{{~ for nullable_field in nullable_fields ~}}
+include "nullable_{{ nullable_field.fixed_namespace | array.add nullable_field.type | array.join '_' | string.downcase }}.fbs";
 {{~ end ~}}
 {{~ for reference_file in reference_files ~}}
 include "{{ reference_file }}.fbs";

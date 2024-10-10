@@ -1,5 +1,8 @@
-{{~ for type in ['byte', 'ubyte', 'bool', 'short', 'ushort', 'int', 'uint', 'float', 'long', 'ulong', 'double'] ~}}
-table nullable_{{ type }} {
-  value: {{ type }};
-}
+{{~ if !field.is_primitive ~}}
+include '{{ field.fixed_namespace | array.add field.type | array.join '.' | string.downcase }}.fbs';
 {{~ end ~}}
+namespace nullable;
+
+table nullable_{{ field.fixed_namespace | array.add field.type | array.join '_' | string.downcase }} {
+  value: {{ field.fixed_raw_namespace | array.add field.type | array.join '.' }};
+}

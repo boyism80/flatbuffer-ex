@@ -1,4 +1,6 @@
-﻿namespace FlatBufferEx.Model
+﻿using Google.FlatBuffers;
+
+namespace FlatBufferEx.Model
 {
     public class Field
     {
@@ -30,9 +32,100 @@
             }
         }
 
+        public string Key => string.Join('.', ReferNamespace ?? new List<string>()) + Type;
+
+        public IEnumerable<Field> NullableFields
+        {
+            get
+            {
+                var visit = new HashSet<string>();
+                if (ArrayElement != null)
+                {
+                    foreach (var field in ArrayElement.NullableFields)
+                    {
+                        if (visit.Contains(field.Key))
+                            continue;
+
+                        visit.Add(Key);
+                        yield return field;
+                    }
+                }
+
+                if (IsNullable)
+                {
+                    if (visit.Contains(Key) == false)
+                        yield return this;
+                }
+            }
+        }
+
         public bool IsArray => Type == "array";
         public bool IsCustomClass => Context.IsCustomClass(this);
         public bool IsEnum => Context.IsEnum(this);
+        public IEnumerable<string> Namespace => ReferNamespace ?? Scope.Namespace;
+        public bool IsPrimitive
+        {
+            get
+            {
+                switch (Type)
+                {
+                    case "byte":
+                    case "ubyte":
+                    case "bool":
+                    case "short":
+                    case "ushort":
+                    case "int":
+                    case "uint":
+                    case "float":
+                    case "long":
+                    case "ulong":
+                    case "double":
+                        return true;
+
+                    default:
+                        return false;
+                }
+            }
+        }
+
+        public bool ContainsPrimitive
+        {
+            get
+            {
+                if (ArrayElement != null)
+                {
+                    if (ArrayElement.ContainsPrimitive)
+                        return true;
+                }
+
+                return IsPrimitive;
+            }
+        }
+
+        public IEnumerable<string> FixedNamespace
+        {
+            get
+            {
+                if (IsPrimitive)
+                    return new List<string>();
+
+                if (ReferNamespace != null)
+                    return ReferNamespace;
+
+                return Scope.Namespace;
+            }
+        }
+
+        public IEnumerable<string> FixedRawNamespace
+        {
+            get
+            {
+                if (IsPrimitive)
+                    return new List<string>();
+
+                return FixedNamespace.Concat(new[] { "raw" });
+            }
+        }
     }
 
     public class Table
@@ -52,6 +145,22 @@
             {
                 var result = Fields.SelectMany(x => x.GetReferenceTypes()).Select(x => x.ToLower()).Distinct();
                 return result;
+            }
+        }
+
+        public IEnumerable<Field> NullableFields
+        {
+            get
+            {
+                var visit = new HashSet<string>();
+                foreach (var field in Fields.SelectMany(x => x.NullableFields))
+                {
+                    if (visit.Contains(field.Key))
+                        continue;
+
+                    visit.Add(field.Key);
+                    yield return field;
+                }
             }
         }
     }
@@ -126,7 +235,27 @@
                 }
             }
 
-            return true;
+            return false;
+        }
+
+        public IEnumerable<Field> NullableFields
+        {
+            get
+            {
+                var visit = new HashSet<string>();
+
+                foreach (var scope in Scopes)
+                {
+                    foreach (var field in scope.Tables.SelectMany(x => x.NullableFields))
+                    {
+                        if (visit.Contains(field.Key))
+                            continue;
+
+                        visit.Add(field.Key);
+                        yield return field;
+                    }
+                }
+            }
         }
     }
 
