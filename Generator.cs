@@ -9,14 +9,23 @@ namespace FlatBufferEx
         private static readonly Template RawEnumTemplate = Template.Parse(File.ReadAllText("Template/raw.enum.txt"));
 
 
-        public static string RawFlatBufferTableContents(Table table)
+        public static string RawFlatBufferTableContents(Model.Table table)
         {
-            return RawTableTemplate.Render(table);
+            var obj = new ScribanEx();
+            obj.Add("table", table);
+            var ctx = new TemplateContext();
+            ctx.PushGlobal(obj);
+
+            return RawTableTemplate.Render(ctx);
         }
 
         public static string RawFlatBufferEnumContents(Model.Enum e)
         {
-            return RawEnumTemplate.Render(e);
+            var obj = new ScribanEx();
+            obj.Add("enum", e);
+            var ctx = new TemplateContext();
+            ctx.PushGlobal(obj);
+            return RawEnumTemplate.Render(ctx);
         }
     }
 }

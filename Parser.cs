@@ -52,19 +52,20 @@ namespace FlatBufferEx
             }
         }
 
-        private static Field GetField(Context context, Scope scope, string type)
+        private static Field GetField(Context context, Scope scope, Table table, string type)
         {
             var field = new Field
             {
                 Context = context,
-                Scope = scope
+                Scope = scope,
+                Table = table,
             };
 
             field.IsNullable = RemoveNullableType(ref type);
             if (RemoveArrayType(ref type))
             {
                 field.Type = "array";
-                field.ArrayElement = GetField(context, scope, type);
+                field.ArrayElement = GetField(context, scope, table, type);
             }
             else
             {
@@ -74,14 +75,14 @@ namespace FlatBufferEx
             return field;
         }
 
-        private static IEnumerable<Field> GetFields(Context context, Scope scope, string contents)
+        private static IEnumerable<Field> GetFields(Context context, Scope scope, Table table, string contents)
         {
             foreach (Match match in FieldRegEx.Matches(contents))
             {
                 if (match.Groups["deprecated"].Success)
                     continue;
 
-                var field = GetField(context, scope, match.Groups["type"].Value);
+                var field = GetField(context, scope, table, match.Groups["type"].Value);
                 field.Name = match.Groups["name"].Value;
                 field.Init = match.Groups["init"].Success ? match.Groups["init"].Value : null;
                 yield return field;
@@ -113,9 +114,9 @@ namespace FlatBufferEx
                     Scope = scope,
                     Type = match.Groups["type"].Value,
                     Name = match.Groups["name"].Value,
-                    Fields = GetFields(context, scope, match.Groups["contents"].Value).ToList(),
                 };
 
+                table.Fields = GetFields(context, scope, table, match.Groups["contents"].Value).ToList();
                 yield return table;
             }
         }

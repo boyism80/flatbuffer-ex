@@ -8,6 +8,33 @@ namespace FlatBufferEx.Model
         {
         }
 
+        public static IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> KeywordMap { get; private set; } = new Dictionary<string, IReadOnlyDictionary<string, string>>
+        {
+            ["c++"] = new Dictionary<string, string>
+            {
+                ["class"] = "_class"
+            },
+            ["c#"] = new Dictionary<string, string>
+            {
+                ["internal"] = "_internal"
+            }
+        };
+
+        public static string ToMappedKeyword(string env, string value)
+        {
+            if (KeywordMap.TryGetValue(env, out var keywords) == false)
+                return value;
+
+            if (keywords.TryGetValue(value, out var result) == false)
+                return value;
+
+            return result;
+        }
+
+        public static string CppMappedKwd(string value) => ToMappedKeyword("c++", value);
+
+        public static string CsMappedKwd(string value) => ToMappedKeyword("c#", value);
+
         public static string UpperCamel(string value)
         {
             if (value == null)

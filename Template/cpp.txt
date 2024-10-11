@@ -1,212 +1,234 @@
 {{~
-func cpp_namespace(namespace)
-    ret namespace | array.join '::'
-end
-
-func create_field(field)
-    if field | @is_custom_table
-        ret "this->" + field.name + ".Build(builder)"
-    end
-
-    if field | @is_enum
-        if (field.refer_namespace | array.size) > 0
-            $cast = field.refer_namespace | array.add 'origin' | array.add field.type | array.join '::'
-        else
-            $cast = namespace | array.add 'origin' | array.add field.type | array.join '::'
-        end
-        ret '(' + $cast + ')this->' + field.name
-    end
-
-    case field.type
+func cpp_type_from_str(type)
+    $result = ''
+    case type
         when "string"
-            ret "builder.CreateString(this->" + field.name + ")"
+            $result = "std::string"
+        when "byte"
+            $result = "int8_t"
+        when "ubyte"
+            $result = "uint8_t"
+        when "short"
+            $result = "int16_t"
+        when "ushort"
+            $result = "uint16_t"
+        when "uint"
+            $result = "uint32_t"
+        when "ulong"
+            $result = "unsigned long"
         when "array"
-            if field.array_element.type | @is_prime_type
-                ret "builder.CreateVector(this->" + field.name + ")"
-            else
-                ret "this->Create" + (field.name | string.capitalize) + "(builder)"
-            end
+            $result = "std::vector<" + (field.array_element | @cpp_type) + ">"
         else
-            ret "this->" + field.name
+            $result = type
     end
+
+    ret $result
 end
 
 func cpp_type(field)
-    $prefix = ''
+    $result = @cpp_type_from_str(field.type)
     if field.refer_namespace
-        $prefix = (field.refer_namespace | @cpp_namespace) + '::'
+        $result = (field.refer_namespace | array.add $result | array.join '::')
+    else if field.is_custom_class
+        $result = (field.scope.namespace | array.add $result | array.join '::')
     end
 
-    if field | @is_enum
-        ret $prefix + field.type
+    if field.is_nullable
+        $result = 'std::optional<' + $result + '>'
     end
 
-    case field.type
-        when "string"
-            ret "std::string"
-        when "byte"
-            ret "int8_t"
-        when "ubyte"
-            ret "uint8_t"
-        when "short"
-            ret "int16_t"
-        when "ushort"
-            ret "uint16_t"
-        when "uint"
-            ret "uint32_t"
-        when "ulong"
-            ret "unsigned long"
-        when "array"
-            ret "std::vector<" + (field.array_element | @cpp_type) + ">"
-        else
-            ret $prefix + field.type
-    end
+    ret $result
 end
 
-func cpp_param_type(field)
+func cpp_field_to_ctr_param(field)
     $result = field | @cpp_type
-    if field | @is_class_type
-        ret "const " + $result + "&"
-    else
-        ret $result
+
+    if field.type == 'string'
+        $result = 'const ' + $result + '&'
+    else if field.is_nullable
+        $result = 'const ' + $result + '&'
     end
+
+    ret $result
 end
 
-func cpp_right_value(field)
-    if field | @is_custom_table
-        ret '*raw.' + field.name + '()'
-    else if field.type == 'string'
-        ret 'raw.' + field.name + '() != nullptr ? raw.' + field.name + '()->c_str() : ""'
-    else if field | @is_enum
-        if (field.refer_namespace | array.size) > 0
-            $cast = field.refer_namespace | array.add field.type | array.join '::'
-        else
-            $cast = namespace | array.add field.type | array.join '::'
-        end
-        ret '(' + $cast + ')raw.' + field.name + '()'
+func cpp_field_to_build_param(field)
+    $result = ''
+    if field.type == 'string'
+        $result = 'builder.CreateString(this->' + field.name + ')'
+    else if field.is_custom_class
+        $result = 'this->' + field.name + '.Build(builder)'
+    else if field.type == 'array'
+        $result = 'this->Create' + (field.name | string.capitalize) + '(builder)'
+    else if field.is_enum
+        $result = '(' + (field.refer_namespace | array.add 'raw' | array.add field.type | array.join '::') + ')' + 'this->' + field.name
     else
-        ret 'raw.' + field.name + '()'
+        $result = 'this->' + field.name
     end
+
+    if field.is_nullable
+        $result = 'this->' + field.name + '.has_value() ? ' + $result + '.value() : 0'
+    end
+
+    ret $result
+end
+
+func cpp_raw_to_field(field)
+    $result = ''
+    if field.type == 'string'
+        $result = 'raw.' + field.name + '()->c_str()'
+    else if field.is_custom_class
+        $result = '*raw.' + field.name + '()'
+    else if field.is_enum
+        $result = '(' + (field.refer_namespace | array.add field.type | array.join '::') + ')' + 'raw.' + field.name + '()'
+    else
+        $result = 'raw.' + field.name + '()'
+    end
+
+    if field.is_nullable
+        $result = 'raw.' + field.name + '() != nullptr ? std::optional<' + (field.type | @cpp_type_from_str) + '>(' + $result + '->value()) : std::optional<' + (field.type | @cpp_type_from_str) + '>()'
+    end
+    ret $result
+end
+
+func is_array_type(field)
+    ret field.type == 'array'
+end
+
+func is_not_array_type(field)
+    ret field.type != 'array'
 end
 ~}}
-#ifndef __{{ namespace | array.add file | array.each @string.upcase | array.join '_' | string.replace '.' '_' }}__
-#define __{{ namespace | array.add file | array.each @string.upcase | array.join '_' | string.replace '.' '_' }}__
+#ifndef __PROTOCOL_H__
+#define __PROTOCOL_H__
 
-#include "flatbuffers/flatbuffers.h"
-{{~ for include in includes ~}}
-#include <{{ include_path }}/{{ include }}.h>
-{{~ end ~}}
-{{~ for file in files ~}}
-#include <{{ include_path }}/origin/{{ file }}_generated.h>
-{{~ end ~}}
-#include <{{ include_path }}/protocol_type.h>
 #include <string>
-#include <vector>
+#include <optional>
+{{~ for scope in context.scopes ~}}
+{{~ for enum in scope.enums ~}}
+#include <{{ scope.namespace | array.join '.' | string.downcase }}.{{ enum.name | string.downcase }}_generated.h>
+{{~ end ~}}
+{{~ for table in scope.tables ~}}
+#include <{{ scope.namespace | array.join '.' | string.downcase }}.{{ table.name | string.downcase }}_generated.h>
+{{~ end ~}}
+{{~ end ~}}
 
-{{ for n in namespace }}namespace {{ n }} { {{ end }}
-
-{{~ for enum in enums ~}}
-enum class {{ enum.name}} : {{ {type: enum.type } | @cpp_type }}
+{{~ for scope in context.scopes ~}}
+{{~ if (scope.enums | array.size) > 0 ~}}
+{{ for n in scope.namespace }}namespace {{ n }} { {{ end }}
+{{~ end ~}}
+{{~ for enum in scope.enums ~}}
+enum class {{ enum.name }} : {{ enum.type | @cpp_type_from_str }}
 {
 {{~ for value in enum.values ~}}
-    {{ value }} = {{ namespace | array.add 'origin' | array.join '::' }}::{{ enum.name }}::{{ enum.name }}_{{ value }}{{ if !for.last }},{{ end }}
+    {{ value }} = {{ enum.scope.namespace | array.add 'raw' | array.add enum.name | array.add enum.name + '_' + value | array.join '::' }},
 {{~ end ~}}
 };
 {{~ end ~}}
-
-{{~ for table in tables ~}}
-class {{ table.name }}
-{
-{{~ if table.root ~}}
-public:
-    static inline {{ namespace | array.join '::' }}::FlatBufferProtocolType FlatBufferProtocolType = {{ namespace | array.join '::' }}::FlatBufferProtocolType::{{ table.name }};
+{{~ if (scope.enums | array.size) > 0 ~}}
+{{ for n in scope.namespace }}} {{ end }}
+{{~ end ~}}
 {{~ end ~}}
 
+{{~ for scope in context.scopes ~}}
+{{ for n in scope.namespace }}namespace {{ n }} { {{ end }}
+{{~ for table in scope.tables ~}}
+class {{ table.name }}
+{
+{{~ if (table.fields | array.size) > 0 ~}}
 public:
 {{~ for field in table.fields ~}}
     {{ field | @cpp_type }} {{ field.name }};
+{{~ end ~}}
 {{~ end ~}}
 
 public:
     {{ table.name }}()
     { }
 
-    {{ table.name }}(const {{ table.name }}& x){{ if table.fields }}{{ if (table.fields | array.size) > 0 }}
-        : {{ end }}{{ for field in table.fields}}{{ field.name }}(x.{{ field.name }}){{ if !for.last }}, {{ end }}{{ end }}{{ end }}
+    {{ table.name }}(const {{ table.name }}& x)
+{{~ if (table.fields | array.size) > 0 ~}}
+        : {{ for field in table.fields }}{{ field.name }}(x.{{ field.name }}){{ if !for.last }}, {{end }}{{ end }}
+{{~ end ~}}
     { }
 
 {{~ if (table.fields | array.size) > 0 ~}}
-    {{ table.name }}({{ for field in table.fields }}{{ field | @cpp_param_type }} {{ field.name }}{{ if !for.last }}, {{ end }}{{ end }}){{ if table.fields }}
-        : {{ for field in table.fields }}{{ field.name }}({{ field.name }}){{ if !for.last }}, {{ end }}{{ end }}{{ end }}
+    {{ table.name }}({{ for field in table.fields }}{{ field | @cpp_field_to_ctr_param }} {{ field.name }}{{ if !for.last }}, {{end }}{{ end }})
+        : {{ for field in table.fields }}{{ field.name }}({{ field.name }}){{ if !for.last }}, {{ end }}{{ end }}
     { }
 {{~ end ~}}
-    {{ table.name }}(const {{ cpp_namespace(namespace | array.add 'origin') }}::{{ table.name }}& raw){{ for field in table.fields | array.filter @is_non_array }}{{ if for.first }}
-        : {{ end }}{{ field.name }}({{ field | @cpp_right_value }}){{ if !for.last }}, {{ end }}{{ end }}
-{{~ if (table.fields | array.size) == 0 ~}}
-    { }
-{{~ else ~}}
-    {
-{{~ for field in table.fields | array.filter @is_array ~}}
-        for (int i = 0; i < raw.{{ field.name }}()->size(); i++)
-            this->{{ field.name }}.push_back({{ if field | @is_custom_array }}*{{ end }}raw.{{ field.name }}()->Get(i));
-{{~ if !for.last ~}}
 
+    {{ table.name }}(const {{ scope.namespace | array.add 'raw' | array.add table.name | array.join '::' }}& raw)
+{{~ if (table.fields | array.filter @is_not_array_type | array.size) > 0~}}
+        : {{ for field in table.fields | array.filter @is_not_array_type }}{{ field.name }}({{ field | @cpp_raw_to_field }}){{ if !for.last }}, {{ end }}{{ end }}
 {{~ end ~}}
+    {
+{{~ for field in table.fields | array.filter @is_array_type ~}}
+        for (int i = 0; i < raw.{{ field.name }}()->size(); i++)
+        {
+{{~ if field.array_element.is_nullable ~}}
+            this->{{ field.name }}.push_back(raw.{{ field.name }}()->Get(i) != nullptr ? std::optional<{{ field.array_element.type | @cpp_type_from_str }}>({{~ if field.array_element.is_enum ~}}({{ field.array_element.type }}){{~ end ~}}raw.{{ field.name }}()->Get(i)->value()) : std::optional<{{ field.array_element.type | @cpp_type_from_str }}>());
+{{~ else ~}}
+            this->{{ field.name }}.push_back(*raw.{{ field.name }}()->Get(i));
+{{~ end ~}}
+        }
 {{~ end ~}}
     }
-{{~ end ~}}
 
-{{~ for field in table.fields | array.filter @is_custom_array ~}}
-{{ if for.first }}private:{{ end }}
+{{~ if (table.fields | array.filter @is_array_type | array.size) > 0 ~}}
+private:
+{{~ for field in table.fields | array.filter @is_array_type ~}}
     auto Create{{ field.name | string.capitalize }}(flatbuffers::FlatBufferBuilder& builder) const
     {
-{{~ if field.array_element.refer_namespace ~}}
-        auto result = std::vector<flatbuffers::Offset<{{ cpp_namespace(field.array_element.refer_namespace | array.add 'origin') }}::{{ {type: field.array_element.type} | @cpp_type }}>>();
+{{~ if field.array_element.is_nullable ~}}
+        auto result = std::vector<flatbuffers::Offset<nullable::nullable_{{ field.array_element.fixed_namespace | array.add field.array_element.type | array.join '_' | string.downcase }}>>();
+        for(auto& x : this->{{ field.name }})
+        {
+            auto nullable_builder = nullable::nullable_{{ field.array_element.fixed_namespace | array.add field.array_element.type | array.join '_' | string.downcase }}Builder(builder);
+            if(x.has_value())
+                nullable_builder.add_value({{~ if field.array_element.is_enum ~}}({{ field.array_element.fixed_namespace | array.add 'raw' | array.add field.array_element.type | array.join '::' }}){{~ end ~}}x.value());
+            result.push_back(nullable_builder.Finish());
+        }
 {{~ else ~}}
-        auto result = std::vector<flatbuffers::Offset<{{ cpp_namespace(namespace | array.add 'origin') }}::{{ field.array_element | @cpp_type }}>>();
-{{~ end ~}}
+        auto result = std::vector<flatbuffers::Offset<{{ (field.array_element.namespace) | array.add 'raw' | array.add field.array_element.type | array.join '::' }}>>();
         for(auto& x : this->{{ field.name }})
         {
             result.push_back(x.Build(builder));
         }
+{{~ end ~}}
 
         return builder.CreateVector(result);
     }
+{{~ end ~}}
 {{~ end ~}}
 
 public:
     auto Build(flatbuffers::FlatBufferBuilder& builder) const
     {
-        return {{ cpp_namespace(namespace | array.add 'origin') }}::Create{{ table.name }}(builder{{~ if table.fields ~}}{{ if (table.fields | array.size) > 0 }},
+        return {{ scope.namespace | array.add 'raw' | array.add 'Create' + table.name | array.join '::' }}(builder{{ if (table.fields | array.size) > 0 }},
 {{~ for field in table.fields ~}}
-            {{ field | @create_field }}{{ if !for.last }},
-{{ end }}{{~ end ~}}{{~ end ~}}{{ end }});
+            {{ field | @cpp_field_to_build_param }}{{ if !for.last }},
+{{ end }}{{~ end ~}}{{ end }});
     }
 
-{{~ if table.root ~}}
     std::vector<uint8_t> Serialize() const
     {
         auto builder = flatbuffers::FlatBufferBuilder();
         builder.Finish(this->Build(builder));
-        auto bytes = builder.GetBufferPointer();
         auto size = builder.GetSize();
         auto result = std::vector<uint8_t>(size);
-        std::memcpy(result.data(), bytes, size);
+        std::memcpy(result.data(), builder.GetBufferPointer(), size);
         return result;
     }
 
     static {{ table.name }} Deserialize(const uint8_t* bytes)
     {
-        auto raw = {{ namespace | array.add 'origin' | @cpp_namespace }}::Get{{ table.name }}(bytes);
+        auto raw = {{ scope.namespace | array.add 'raw' | array.add 'Get' + table.name | array.join '::' }}(bytes);
         return {{ table.name }}(*raw);
     }
-{{~ end ~}}
 };
-{{~ if !for.last ~}}
-
 {{~ end ~}}
+{{ for n in scope.namespace }}} {{ end }}
 {{~ end ~}}
-
-{{ for n in namespace }} } {{ end }}
 
 #endif

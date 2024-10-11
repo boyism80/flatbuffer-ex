@@ -1,146 +1,148 @@
 {{~
-func cs_namespace(namespace)
-    ret namespace | array.each @cs_replace_reserved_keyword | array.join '.'
+func cs_type_from_str(type)
+    $result = ''
+    case type
+        when "string"
+            $result = "string"
+        when "byte"
+            $result = "sbyte"
+        when "ubyte"
+            $result = "byte"
+        when "array"
+            $result = "List<" + (field.array_element | @cs_type) + ">"
+        else
+            $result = type
+    end
+
+    ret $result
 end
 
 func cs_type(field)
-    $prefix = ''
+    $result = @cs_type_from_str(field.type)
     if field.refer_namespace
-        $prefix = (field.refer_namespace | @cs_namespace) + '.'
+        $result = (field.refer_namespace | array.add $result | array.each @cs_mapped_kwd | array.join '.')
+    else if field.is_custom_class
+        $result = (field.scope.namespace | array.add $result | array.each @cs_mapped_kwd | array.join '.')
     end
 
-    if field | @is_enum
-        ret $prefix + field.type
+    if field.is_nullable && field.is_primitive
+        $result = $result + '?'
     end
 
-    case field.type
-        when "array"
-            ret $prefix + "List<" + (field.array_element | @cs_type) + ">"
-        when "ubyte"
-            ret $prefix + "byte"
-        when "byte"
-            ret $prefix + "sbyte"
-        else
-            ret $prefix + field.type
-    end
+    ret $result
 end
 
-func create_field(field, custom_namespace)
-    if field | @is_custom_table
-        ret (field.name | @upper_camel) + '.Build(builder)'
-    end
-
-    if field | @is_enum
-        if (field.refer_namespace | array.size) > 0
-            $cast = field.refer_namespace | array.concat ['origin', field.type] | array.each @cs_replace_reserved_keyword | array.join '.'
-        else
-            $cast = namespace | array.concat ['origin', field.type] | array.each @cs_replace_reserved_keyword | array.join '.'
-        end
-        ret '(' + $cast + ')' + (field.name | @upper_camel)
-    end
-
-    case field.type
-        when "string"
-            ret "builder.CreateString(" + (field.name | @upper_camel) + ")"
-        when "array"
-            if field | @is_custom_array
-                ret (custom_namespace | @cs_namespace) + '.Create' + (field.name | @upper_camel) + 'Vector(builder, ' + (field.name | @upper_camel) + '.ConvertAll(x => x.Build(builder)).ToArray())'
-            else
-                ret (custom_namespace | @cs_namespace) + '.Create' + (field.name | @upper_camel) + 'Vector(builder, ' + (field.name | @upper_camel) + '.ToArray())'
-            end
-        else
-            ret field.name | @upper_camel
-    end
-end
-
-func cs_init_value(field)
-    if field | @is_custom_table
-        ret 'new ' + field.type + '(raw.' + (field.name | @upper_camel) + '.Value)'
-    else if field | @is_custom_array
-        ret 'Enumerable.Range(0, raw.' + (field.name | @upper_camel) + 'Length).Select(i => new ' + field.array_element.type + '(raw.' + (field.name | @upper_camel) + '(i).Value)).ToList()'
-    else if field | @is_array
-        ret 'Enumerable.Range(0, raw.' + (field.name | @upper_camel) + 'Length).Select(i => raw.' + (field.name | @upper_camel) + '(i)).ToList()'
-    else if field | @is_enum
-        if (field.refer_namespace | array.size) > 0
-            $cast = field.refer_namespace | array.add field.type | array.each @cs_replace_reserved_keyword | array.join '.'
-        else
-            $cast = namespace | array.add field.type | array.each @cs_replace_reserved_keyword | array.join '.'
-        end
-        ret '(' + $cast + ')raw.' + (field.name | @upper_camel)
+func cs_field_to_build_param(field)
+    $result = ''
+    if field.type == 'string'
+        $result = 'builder.CreateString(' + (field.name | upper_camel) + ')'
+    else if field.is_custom_class
+        $result = field.name | upper_camel + '.Build(builder)'
+    else if field.type == 'array'
+        $result = (field.scope.namespace | array.add 'raw' | array.add field.table.name | array.add 'Create' + (field.name | upper_camel) + 'Vector' | array.each @cs_mapped_kwd | array.join '.') + '(builder, ' + (field.name | upper_camel) + '.ConvertAll(x => x.Build(builder)).ToArray())'
+    else if field.is_enum
+        $result = '(' + (field.fixed_namespace | array.add 'raw' | array.add field.type | array.each @cs_mapped_kwd | array.join '.') + ')' + (field.name | upper_camel)
     else
-        ret 'raw.' + (field.name | @upper_camel)
+        $result = field.name | upper_camel
     end
+
+    if field.is_nullable
+        $result = $result + '.HasValue ? nullable_' + field.type + '.Createnullable_' + field.type + '(builder, ' + (field.name | upper_camel) + '.Value) : default'
+    end
+    ret $result
 end
 
-func cs_init_rvalue(field)
-    $prefix = ' = '
-    $suffix = ';'
-    if field.init == ''
-        if field.type == 'string'
-            ret $prefix + 'string.Empty' + $suffix
-        else
-            ret ''
-        end
-    else if field | @is_enum
-        ret $prefix + (namespace | @cs_namespace) + '.' + field.type + '.' + field.init + $suffix
+func cs_raw_to_ctr_param(field)
+    $result = ''
+    if field.is_custom_class
+        $result = 'new ' + (field.type | upper_camel) + '(raw.' + (field.name | upper_camel) + '.Value)'
+    else if field.type == 'array'
+        $result = 'Enumerable.Range(0, raw.' + (field.name | upper_camel) + 'Length).Select(i => new ' + (field.array_element | @cs_type) + '(raw.' + (field.name | upper_camel) + '(i).Value)).ToList()'
+    else if field.is_enum
+        $result = '(' + field.type + ')raw.' + (field.name | upper_camel)
     else
-        ret $prefix + field.init + $suffix
+        $result = 'raw.' + (field.name | upper_camel)
     end
+
+    if field.is_nullable
+        if field.is_primitive
+            $result = $result + '?.Value'
+        else
+        end
+    end
+    ret $result
 end
 ~}}
 using Google.FlatBuffers;
+using nullable;
 
-namespace {{ namespace | cs_namespace }}
+namespace Google.FlatBuffers
 {
-{{~ if (enums | array.size) > 0 ~}}
-{{~ for enum in enums ~}}
-    public enum {{ enum.name }} : {{ {type: enum.type} | @cs_type }}
+    public interface IFlatBufferEx
+    {
+        int ProtocolType { get; }
+        byte[] Serialize();
+    }
+}
+
+{{~ for scope in context.scopes ~}}
+namespace {{ scope.namespace | array.each @cs_mapped_kwd | array.join '.' }}
+{
+    public enum FlatBufferProtocolType
+    { 
+{{~ for table in scope.tables ~}}
+        {{ table.name }}{{ if !for.last }},{{ end }}
+{{~ end ~}}
+    }
+}
+{{~ end ~}}
+
+{{~ for scope in context.scopes ~}}
+namespace {{ scope.namespace | array.each @cs_mapped_kwd | array.join '.' }}
+{
+{{~ for enum in scope.enums ~}}
+    public enum {{ enum.name }}
     {
 {{~ for value in enum.values ~}}
-        {{ value }} = {{ namespace | array.add 'origin' | array.add enum.name | @cs_namespace }}.{{ value }}{{ if !for.last }},{{ end }}
+        {{ value }},
 {{~ end ~}}
     }
 {{~ end ~}}
 
-{{~ end ~}}
-{{~ for table in tables~}}
-    public class {{ table.name }}{{ if table.root }} : IFlatBufferEx{{ end }}
+{{~ for table in scope.tables ~}}
+    public class {{ table.name }} : IFlatBufferEx
     {
-{{~ if table.root ~}}
         public int ProtocolType => (int)FlatBufferProtocolType.{{ table.name }};
-{{~ end ~}}
 {{~ for field in table.fields ~}}
-        public {{ field | @cs_type }} {{ field.name | @upper_camel }} { get; set; }{{ field | @cs_init_rvalue }}
+        public {{ field | @cs_type }} {{ field.name | upper_camel }} { get; set; }
 {{~ end ~}}
 
         public {{ table.name }}()
         { }
 
-        public {{ table.name }}({{ cs_namespace(namespace | array.add 'origin' | array.add table.name) }} raw)
+        public {{ table.name }}({{ scope.namespace | array.add 'raw' | array.add table.name | array.each @cs_mapped_kwd | array.join '.' }} raw)
         {
 {{~ for field in table.fields ~}}
-            {{ field.name | @upper_camel }} = {{ field | @cs_init_value }};
+            {{ field.name | upper_camel }} = {{ field | @cs_raw_to_ctr_param }};
 {{~ end ~}}
         }
 
-{{~ if table.root ~}}
-        public {{ table.name }}(byte[] bytes) : this({{ namespace | array.add 'origin' | @cs_namespace }}.{{ table.name }}.GetRootAs{{ table.name }}(new ByteBuffer(bytes)))
+        public {{ table.name }}(byte[] bytes) : this({{ scope.namespace | array.add 'raw' | array.add table.name | array.each @cs_mapped_kwd | array.join '.' }}.GetRootAs{{ table.name }}(new ByteBuffer(bytes)))
         { }
-{{~ end ~}}
 
-        public Offset<{{ cs_namespace(namespace | array.add 'origin' | array.add table.name) }}> Build(FlatBufferBuilder builder)
+        public Offset<{{ scope.namespace | array.add 'raw' | array.add table.name | array.each @cs_mapped_kwd | array.join '.' }}> Build(FlatBufferBuilder builder)
         {
 {{~ if (table.fields | array.size) > 0 ~}}
-            return {{ namespace | array.add 'origin' | @cs_namespace }}.{{ table.name }}.Create{{ table.name }}(builder{{~ if (table.fields | array.size) > 0~}},
+            return {{ scope.namespace | array.add 'raw' | array.add table.name | array.each @cs_mapped_kwd | array.join '.' }}.Create{{ table.name }}(builder,
 {{~ for field in table.fields ~}}
-                {{ create_field field (namespace | array.add 'origin' | array.add table.name) }}{{ if !for.last}},
-{{ end }}{{~ end ~}}{{~ end ~}});
+                {{ field | @cs_field_to_build_param }}{{ if !for.last }},
+{{~ end ~}}
+{{~ end ~}});
 {{~ else ~}}
-            {{ namespace | array.add 'origin' | @cs_namespace }}.{{ table.name }}.Start{{ table.name }}(builder);
-            return {{ namespace | array.add 'origin' | @cs_namespace }}.{{ table.name }}.End{{ table.name }}(builder);
+            {{ table.scope.namespace | array.add 'raw' | array.each @cs_mapped_kwd | array.add table.name | array.add ('Start' + table.name) | array.join '.'}}(builder);
+            return {{ table.scope.namespace | array.add 'raw' | array.each @cs_mapped_kwd | array.add table.name | array.add ('End' + table.name) | array.join '.'}}(builder);
 {{~ end ~}}
         }
-{{~ if table.root ~}}
 
         public byte[] Serialize()
         {
@@ -154,7 +156,21 @@ namespace {{ namespace | cs_namespace }}
         {
             return new {{ table.name }}(bytes);
         }
-{{~ end ~}}
     }
 {{~ end ~}}
+
+    public static class FlatBufferProtocolRouter
+    {
+        public static Type GetProtocolType(FlatBufferProtocolType protocolType)
+        {
+            return protocolType switch
+            {
+{{~ for table in scope.tables ~}}
+                FlatBufferProtocolType.{{ table.name }} => typeof({{ scope.namespace | array.add table.name | array.each @cs_mapped_kwd | array.join '.'}}),
+{{~ end ~}}
+                _ => throw new ArgumentException(),
+            };
+        }
+    }
 }
+{{~ end ~}}

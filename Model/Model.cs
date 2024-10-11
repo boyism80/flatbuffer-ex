@@ -6,6 +6,7 @@ namespace FlatBufferEx.Model
     {
         public Context Context { get; set; }
         public Scope Scope { get; set; }
+        public Table Table { get; set; }
         public string Name { get; set; }
         public string Type { get; set; }
         public string Init { get; set; }

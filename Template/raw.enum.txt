@@ -1,8 +1,8 @@
-namespace {{ scope.namespace | array.add 'raw' | array.join '.' }};
+namespace {{ enum.scope.namespace | array.add 'raw' | array.each @cs_mapped_kwd | array.join '.' }};
 
-enum {{ name }} : {{ type }}
+enum {{ enum.name }} : {{ enum.type }}
 {
-{{~ for value in values ~}}
+{{~ for value in enum.values ~}}
 	{{ value }}{{ if !for.last }},{{ end }}
 {{~ end ~}}
 }

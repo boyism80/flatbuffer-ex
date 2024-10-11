@@ -2,7 +2,7 @@
 func generate_type(field)
   type = field.type
   if field.is_nullable
-    type = 'nullable_' + (field.fixed_namespace | array.add type | array.join ('_') | string.downcase)
+    type = 'nullable_' + (field.fixed_namespace | array.add type | array.join '_' | string.downcase)
     type = 'nullable.' + type
   end
 
@@ -14,7 +14,7 @@ func generate_type(field)
       if field.is_nullable
         $result = type
       else
-        $result = (field.refer_namespace | array.add 'raw' | array.add type | array.join '.')
+        $result = (field.refer_namespace | array.add 'raw' | array.add type | array.each @cs_mapped_kwd | array.join '.')
       end
     else
       $result = type
@@ -24,18 +24,18 @@ func generate_type(field)
   ret $result
 end
 ~}}
-{{~ for nullable_field in nullable_fields ~}}
+{{~ for nullable_field in table.nullable_fields ~}}
 include "nullable_{{ nullable_field.fixed_namespace | array.add nullable_field.type | array.join '_' | string.downcase }}.fbs";
 {{~ end ~}}
-{{~ for reference_file in reference_files ~}}
+{{~ for reference_file in table.reference_files ~}}
 include "{{ reference_file }}.fbs";
 {{~ end ~}}
 
-namespace {{ scope.namespace | array.add 'raw' | array.join '.' }};
+namespace {{ table.scope.namespace | array.add 'raw' | array.each @cs_mapped_kwd | array.join '.' }};
 
-table {{ name }} {
-{{~ for field in fields ~}}
+table {{ table.name }} {
+{{~ for field in table.fields ~}}
   {{ field.name }}: {{ field | generate_type }};
 {{~ end ~}}
 }
-root_type {{ name }};
+root_type {{ table.name }};
