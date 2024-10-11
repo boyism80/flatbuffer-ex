@@ -25,7 +25,7 @@ func cs_type(field)
         $result = (field.scope.namespace | array.add $result | array.each @cs_mapped_kwd | array.join '.')
     end
 
-    if field.is_nullable && field.is_primitive
+    if field.is_nullable && field.is_primitive && field.type != 'string'
         $result = $result + '?'
     end
 
@@ -35,7 +35,11 @@ end
 func cs_field_to_build_param(field)
     $result = ''
     if field.type == 'string'
-        $result = 'builder.CreateString(' + (field.name | upper_camel) + ')'
+        if field.is_nullable
+            $result = (field.name | upper_camel) + ' != null ? nullable_string.Createnullable_string(builder, builder.CreateString(' + (field.name | upper_camel) + ')) : default'
+        else
+            $result = 'builder.CreateString(' + (field.name | upper_camel) + ')'
+        end
     else if field.is_custom_class
         $result = field.name | upper_camel + '.Build(builder)'
     else if field.type == 'array'
@@ -46,7 +50,7 @@ func cs_field_to_build_param(field)
         $result = field.name | upper_camel
     end
 
-    if field.is_nullable
+    if field.is_nullable && field.type != 'string'
         $result = $result + '.HasValue ? nullable_' + field.type + '.Createnullable_' + field.type + '(builder, ' + (field.name | upper_camel) + '.Value) : default'
     end
     ret $result

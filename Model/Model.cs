@@ -81,6 +81,7 @@ namespace FlatBufferEx.Model
                     case "long":
                     case "ulong":
                     case "double":
+                    case "string":
                         return true;
 
                     default:

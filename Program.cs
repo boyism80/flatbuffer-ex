@@ -1,8 +1,10 @@
 ﻿using FlatBufferEx;
 using FlatBufferEx.Model;
+using FlatBufferEx.Util;
 using NDesk.Options;
 using Scriban;
 using System.Diagnostics;
+using System.IO.Compression;
 
 namespace FlatBufferExample
 {
@@ -11,7 +13,7 @@ namespace FlatBufferExample
 
     class Program
     {
-        private static IEnumerable<string> GenerateRawFlatBufferFiles(Context context, string output)
+        private static IEnumerable<string> GenerateRawFlatBufferFiles(Context context, string output, string lang)
         {
             if (Directory.Exists(output))
                 Directory.Delete(output, true);
@@ -20,7 +22,7 @@ namespace FlatBufferExample
             {
                 foreach (var table in scope.Tables)
                 {
-                    var contents = Generator.RawFlatBufferTableContents(table);
+                    var contents = Generator.RawFlatBufferTableContents(table, lang);
                     var path = Path.Combine(output, $"{string.Join('.', scope.Namespace)}.{table.Name.ToLower()}.fbs");
                     File.WriteAllText(path, contents);
                     yield return path;
@@ -28,7 +30,7 @@ namespace FlatBufferExample
 
                 foreach (var e in scope.Enums)
                 {
-                    var contents = Generator.RawFlatBufferEnumContents(e);
+                    var contents = Generator.RawFlatBufferEnumContents(e, lang);
                     var path = Path.Combine(output, $"{string.Join('.', scope.Namespace)}.{e.Name.ToLower()}.fbs");
                     File.WriteAllText(path, contents);
                     yield return path;
@@ -47,9 +49,9 @@ namespace FlatBufferExample
         static async Task Main(string[] args)
         {
             var path = @"D:\Users\CSHYEON\Data\git\game\c++\fb\protocol";
-            var output = "D:\\Users\\CSHYEON\\Desktop\\NullableCS";
+            var output = "output";
             var includePath = string.Empty;
-            var languages = "c#";
+            var languages = "c++|c#";
             var options = new OptionSet
             {
                 { "p|path=", "input directory", v => path = v },
@@ -69,7 +71,8 @@ namespace FlatBufferExample
             var context = Parser.Parse(path, "*.fbs");
             foreach (var lang in languages.Split('|').Select(x => x.Trim().ToLower()).Distinct().ToHashSet())
             {
-                var rawFlatBufferFiles = GenerateRawFlatBufferFiles(context, "raw").Select(f => Path.Join(Directory.GetCurrentDirectory(), f)).ToList();
+                var rawFilePath = "raw";
+                var rawFlatBufferFiles = GenerateRawFlatBufferFiles(context, rawFilePath, lang).Select(f => Path.Join(Directory.GetCurrentDirectory(), f)).ToList();
                 var env = lang switch
                 {
                     "c++" => "cpp",
@@ -83,7 +86,7 @@ namespace FlatBufferExample
                 p.StartInfo.RedirectStandardError = true;
                 p.StartInfo.FileName = "cmd.exe";
                 p.StartInfo.WorkingDirectory = "flatbuffer";
-                p.StartInfo.Arguments = $"/c flatc.exe --{env} -I {Path.Join(Directory.GetCurrentDirectory(), "raw")} -o {lang} {string.Join(" ", rawFlatBufferFiles)}";
+                p.StartInfo.Arguments = $"/c flatc.exe --{env} -I {Path.Join(Directory.GetCurrentDirectory(), rawFilePath)} -o {lang} {string.Join(" ", rawFlatBufferFiles)}";
                 p.Start();
 
                 while (p.StandardOutput.Peek() > -1)
@@ -98,6 +101,7 @@ namespace FlatBufferExample
                     Console.WriteLine(line);
                 }
 
+                Directory.Delete(rawFilePath, true);
                 if (p.ExitCode != 0)
                     Environment.Exit(p.ExitCode);
 
@@ -122,6 +126,7 @@ namespace FlatBufferExample
 
                 var obj = new ScribanEx();
                 obj.Add("context", context);
+                obj.Add("include_path", includePath);
                 var ctx = new TemplateContext();
                 ctx.PushGlobal(obj);
 

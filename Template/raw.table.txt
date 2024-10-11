@@ -14,7 +14,7 @@ func generate_type(field)
       if field.is_nullable
         $result = type
       else
-        $result = (field.refer_namespace | array.add 'raw' | array.add type | array.each @cs_mapped_kwd | array.join '.')
+        $result = (field.refer_namespace | array.add 'raw' | array.add type | array.each @mapped_kwd | array.join '.')
       end
     else
       $result = type
@@ -22,6 +22,10 @@ func generate_type(field)
   end
 
   ret $result
+end
+
+func mapped_kwd(value)
+	ret to_mapped_kwd(lang, value)
 end
 ~}}
 {{~ for nullable_field in table.nullable_fields ~}}
@@ -31,7 +35,7 @@ include "nullable_{{ nullable_field.fixed_namespace | array.add nullable_field.t
 include "{{ reference_file }}.fbs";
 {{~ end ~}}
 
-namespace {{ table.scope.namespace | array.add 'raw' | array.each @cs_mapped_kwd | array.join '.' }};
+namespace {{ table.scope.namespace | array.add 'raw' | array.each @mapped_kwd | array.join '.' }};
 
 table {{ table.name }} {
 {{~ for field in table.fields ~}}

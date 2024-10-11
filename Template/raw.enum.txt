@@ -1,4 +1,10 @@
-namespace {{ enum.scope.namespace | array.add 'raw' | array.each @cs_mapped_kwd | array.join '.' }};
+{{~
+func mapped_kwd(value)
+	ret to_mapped_kwd(lang, value)
+end
+~}}
+
+namespace {{ enum.scope.namespace | array.add 'raw' | array.each @mapped_kwd | array.join '.' }};
 
 enum {{ enum.name }} : {{ enum.type }}
 {

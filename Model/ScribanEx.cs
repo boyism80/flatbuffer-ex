@@ -20,7 +20,7 @@ namespace FlatBufferEx.Model
             }
         };
 
-        public static string ToMappedKeyword(string env, string value)
+        public static string ToMappedKwd(string env, string value)
         {
             if (KeywordMap.TryGetValue(env, out var keywords) == false)
                 return value;
@@ -31,9 +31,9 @@ namespace FlatBufferEx.Model
             return result;
         }
 
-        public static string CppMappedKwd(string value) => ToMappedKeyword("c++", value);
+        public static string CppMappedKwd(string value) => ToMappedKwd("c++", value);
 
-        public static string CsMappedKwd(string value) => ToMappedKeyword("c#", value);
+        public static string CsMappedKwd(string value) => ToMappedKwd("c#", value);
 
         public static string UpperCamel(string value)
         {

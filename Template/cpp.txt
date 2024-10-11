@@ -55,7 +55,11 @@ end
 func cpp_field_to_build_param(field)
     $result = ''
     if field.type == 'string'
-        $result = 'builder.CreateString(this->' + field.name + ')'
+        if field.is_nullable
+            $result = 'builder.CreateString(this->' + field.name + '.value())'
+        else
+            $result = 'builder.CreateString(this->' + field.name + ')'
+        end
     else if field.is_custom_class
         $result = 'this->' + field.name + '.Build(builder)'
     else if field.type == 'array'
@@ -67,7 +71,11 @@ func cpp_field_to_build_param(field)
     end
 
     if field.is_nullable
-        $result = 'this->' + field.name + '.has_value() ? ' + $result + '.value() : 0'
+        if field.type == 'string'
+            $result = 'this->' + field.name + '.has_value() ? nullable::Createnullable_string(builder, ' + $result + ') : flatbuffers::Offset<nullable::nullable_string>{ 0 }'
+        else
+            $result = 'this->' + field.name + '.has_value() ? ' + $result + '.value() : 0'
+        end
     end
 
     ret $result
@@ -76,7 +84,7 @@ end
 func cpp_raw_to_field(field)
     $result = ''
     if field.type == 'string'
-        $result = 'raw.' + field.name + '()->c_str()'
+        $result = 'raw.' + field.name + '()'
     else if field.is_custom_class
         $result = '*raw.' + field.name + '()'
     else if field.is_enum
@@ -86,7 +94,15 @@ func cpp_raw_to_field(field)
     end
 
     if field.is_nullable
-        $result = 'raw.' + field.name + '() != nullptr ? std::optional<' + (field.type | @cpp_type_from_str) + '>(' + $result + '->value()) : std::optional<' + (field.type | @cpp_type_from_str) + '>()'
+        $result = $result + '->value()'
+    end
+
+    if field.type == 'string'
+        $result = $result + '->c_str()'
+    end
+
+    if field.is_nullable
+        $result = 'raw.' + field.name + '() != nullptr ? std::optional<' + (field.type | @cpp_type_from_str) + '>(' + $result + ') : std::optional<' + (field.type | @cpp_type_from_str) + '>()'
     end
     ret $result
 end
@@ -98,18 +114,40 @@ end
 func is_not_array_type(field)
     ret field.type != 'array'
 end
+
+func cpp_default_value(field)
+    $result = ''
+    if field.is_nullable
+        $result = 'std::nullopt'
+    else
+        case field.type
+        when "string"
+            $result = "\"\""
+        when "byte", "ubyte", "short", "ushort", "int", "uint"
+            $result = "0"
+        when "bool"
+            $result = "false"
+        end
+    end
+
+    if $result != ''
+        $result = ' = ' + $result
+    end
+
+    ret $result
+end
 ~}}
-#ifndef __PROTOCOL_H__
-#define __PROTOCOL_H__
+#ifndef __FLATBUFFER_PROTOCOL_H__
+#define __FLATBUFFER_PROTOCOL_H__
 
 #include <string>
 #include <optional>
 {{~ for scope in context.scopes ~}}
 {{~ for enum in scope.enums ~}}
-#include <{{ scope.namespace | array.join '.' | string.downcase }}.{{ enum.name | string.downcase }}_generated.h>
+#include <{{ include_path }}/{{ scope.namespace | array.join '.' | string.downcase }}.{{ enum.name | string.downcase }}_generated.h>
 {{~ end ~}}
 {{~ for table in scope.tables ~}}
-#include <{{ scope.namespace | array.join '.' | string.downcase }}.{{ table.name | string.downcase }}_generated.h>
+#include <{{ include_path }}/{{ scope.namespace | array.join '.' | string.downcase }}.{{ table.name | string.downcase }}_generated.h>
 {{~ end ~}}
 {{~ end ~}}
 
@@ -132,19 +170,29 @@ enum class {{ enum.name }} : {{ enum.type | @cpp_type_from_str }}
 
 {{~ for scope in context.scopes ~}}
 {{ for n in scope.namespace }}namespace {{ n }} { {{ end }}
+
+enum class FlatBufferProtocolType
+{
+{{~ for table in scope.tables ~}}
+    {{ table.name }},
+{{~ end ~}}
+};
+
 {{~ for table in scope.tables ~}}
 class {{ table.name }}
 {
+public:
+    static inline {{ scope.namespace | array.add 'FlatBufferProtocolType' | array.join '::' }} FlatBufferProtocolType = {{ scope.namespace | array.add 'FlatBufferProtocolType' | array.add table.name | array.join '::' }};
+
 {{~ if (table.fields | array.size) > 0 ~}}
 public:
 {{~ for field in table.fields ~}}
-    {{ field | @cpp_type }} {{ field.name }};
+    {{ field | @cpp_type }} {{ field.name }}{{ field | @cpp_default_value }};
 {{~ end ~}}
 {{~ end ~}}
 
 public:
-    {{ table.name }}()
-    { }
+    {{ table.name }}() = default;
 
     {{ table.name }}(const {{ table.name }}& x)
 {{~ if (table.fields | array.size) > 0 ~}}
