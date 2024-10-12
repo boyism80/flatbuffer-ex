@@ -25,55 +25,100 @@ func cs_type(field)
         $result = (field.scope.namespace | array.add $result | array.each @cs_mapped_kwd | array.join '.')
     end
 
-    if field.is_nullable && field.is_primitive && field.type != 'string'
-        $result = $result + '?'
-    end
-
-    ret $result
-end
-
-func cs_field_to_build_param(field)
-    $result = ''
-    if field.type == 'string'
-        if field.is_nullable
-            $result = (field.name | upper_camel) + ' != null ? nullable_string.Createnullable_string(builder, builder.CreateString(' + (field.name | upper_camel) + ')) : default'
+    if field.is_nullable
+        if field.type == 'string'
+        
+        else if field.is_custom_class
+        
         else
-            $result = 'builder.CreateString(' + (field.name | upper_camel) + ')'
+            $result = $result + '?'
         end
-    else if field.is_custom_class
-        $result = field.name | upper_camel + '.Build(builder)'
-    else if field.type == 'array'
-        $result = (field.scope.namespace | array.add 'raw' | array.add field.table.name | array.add 'Create' + (field.name | upper_camel) + 'Vector' | array.each @cs_mapped_kwd | array.join '.') + '(builder, ' + (field.name | upper_camel) + '.ConvertAll(x => x.Build(builder)).ToArray())'
-    else if field.is_enum
-        $result = '(' + (field.fixed_namespace | array.add 'raw' | array.add field.type | array.each @cs_mapped_kwd | array.join '.') + ')' + (field.name | upper_camel)
-    else
-        $result = field.name | upper_camel
     end
 
-    if field.is_nullable && field.type != 'string'
-        $result = $result + '.HasValue ? nullable_' + field.type + '.Createnullable_' + field.type + '(builder, ' + (field.name | upper_camel) + '.Value) : default'
-    end
     ret $result
 end
 
-func cs_raw_to_ctr_param(field)
+func create_offset(field, fix_name=false)
     $result = ''
-    if field.is_custom_class
-        $result = 'new ' + (field.type | upper_camel) + '(raw.' + (field.name | upper_camel) + '.Value)'
+    $name = field.name
+    if !fix_name
+        $name = $name | upper_camel
+    end
+    if field.type == 'string'
+        $result = 'builder.CreateString(' + $name + ')'
+    else if field.is_custom_class
+        $result = $name + '.Build(builder)'
     else if field.type == 'array'
-        $result = 'Enumerable.Range(0, raw.' + (field.name | upper_camel) + 'Length).Select(i => new ' + (field.array_element | @cs_type) + '(raw.' + (field.name | upper_camel) + '(i).Value)).ToList()'
+        $clone = field.array_element | clone_field
+        $clone.name = 'x'
+        $result = (field.scope.namespace | array.add 'raw' | array.add field.table.name | array.add 'Create' + $name + 'Vector' | array.join '.') + '(builder, ' + $name + '.Select(x => ' + create_offset($clone, true) + ').ToArray())'
     else if field.is_enum
-        $result = '(' + field.type + ')raw.' + (field.name | upper_camel)
+        $result = '(' + (field.fixed_namespace | array.add 'raw' | array.add field.type | array.each @cs_mapped_kwd | array.join '.') +')' + $name
     else
-        $result = 'raw.' + (field.name | upper_camel)
+        $result = $name
+    end
+
+    if field.is_bound_nullable
+        $nullable_name = (['nullable'] | array.concat field.fixed_namespace | array.add field.type | array.join '_' | string.downcase)
+        $clone = field | @clone_field
+        $clone.name = $name + '.Value'
+        $clone.is_nullable = false
+        $result = $nullable_name + '.Create' + $nullable_name + '(builder, ' + create_offset($clone, true) + ')'
     end
 
     if field.is_nullable
-        if field.is_primitive
-            $result = $result + '?.Value'
-        else
-        end
+        $result = $name + ' != null ? ' + $result + ' : default'
     end
+    ret $result
+end
+
+func cs_access_nullable_value(value, field)
+    if field.is_custom_class
+        ret value + '.Value'
+    else if field.type == 'string'
+        ret value
+    else if field.is_nullable
+        ret value + '.Value'
+    else if field.is_enum
+        ret '(' + (field.fixed_namespace | array.add field.type | array.each @cs_mapped_kwd | array.join '.') + ')' + value
+    else if field.is_primitive
+        ret value
+    else
+        ret value + '()'
+    end
+end
+
+func cs_create_field(raw_name, field)
+    $result = ''
+    $flatbuffer_offset = raw_name
+    if field.name
+        $flatbuffer_offset = $flatbuffer_offset + '.' + (field.name | upper_camel)
+    end
+    $flatbuffer_value = cs_access_nullable_value($flatbuffer_offset, field)
+
+    if field.is_bound_nullable
+        $casting_type = '(' + (field.fixed_namespace | array.add (field | @cs_type) | array.each @cs_mapped_kwd | array.join '.') + ')'
+        $flatbuffer_value = $casting_type + $flatbuffer_value + '.Value'
+    end
+
+    if field.is_custom_class
+        $value = 'new ' + field.type + '(' + $flatbuffer_value + ')'
+    else if field.type == 'string'
+        $value = $flatbuffer_value
+    else if field.type == 'array'
+        $value = 'Enumerable.Range(0, raw.' + (field.name | upper_camel) + 'Length).Select(i => raw.' + (field.name | upper_camel) + '(i)).Select(x => ' + cs_create_field('x', field.array_element) + ').ToList()'
+    else if field.is_enum
+        $value = $flatbuffer_value
+    else
+        $value = $flatbuffer_value
+    end
+
+    if field.is_nullable && field.type != 'string'
+        $result = $flatbuffer_offset + ' != null ? ' + $value + ' : null'
+    else
+        $result = $value
+    end
+
     ret $result
 end
 ~}}
@@ -127,7 +172,7 @@ namespace {{ scope.namespace | array.each @cs_mapped_kwd | array.join '.' }}
         public {{ table.name }}({{ scope.namespace | array.add 'raw' | array.add table.name | array.each @cs_mapped_kwd | array.join '.' }} raw)
         {
 {{~ for field in table.fields ~}}
-            {{ field.name | upper_camel }} = {{ field | @cs_raw_to_ctr_param }};
+            {{ field.name | upper_camel }} = {{ cs_create_field('raw', field) }};
 {{~ end ~}}
         }
 
@@ -139,7 +184,7 @@ namespace {{ scope.namespace | array.each @cs_mapped_kwd | array.join '.' }}
 {{~ if (table.fields | array.size) > 0 ~}}
             return {{ scope.namespace | array.add 'raw' | array.add table.name | array.each @cs_mapped_kwd | array.join '.' }}.Create{{ table.name }}(builder,
 {{~ for field in table.fields ~}}
-                {{ field | @cs_field_to_build_param }}{{ if !for.last }},
+                {{ field | @create_offset }}{{ if !for.last }},
 {{~ end ~}}
 {{~ end ~}});
 {{~ else ~}}

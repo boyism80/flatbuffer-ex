@@ -12,8 +12,12 @@ func generate_type(field)
     $result = $ns | array.add field.type | array.each @mapped_kwd | array.join '.'
 
     if field.is_nullable
-        if field.is_primitive && field.type != 'string'
-            $result = 'nullable.nullable_' + field.type
+        if field.is_custom_class
+
+        else if field.type == 'string'
+
+        else
+            $result = 'nullable.' + (['nullable'] | array.concat field.fixed_namespace | array.add field.type | array.each @mapped_kwd | array.join '_' | string.downcase)
         end
     end
     ret $result

@@ -59,9 +59,7 @@ end
 func cpp_decorate_const_ref(field)
     $result = field | @cpp_type
 
-    if field.type == 'string'
-        $result = 'const ' + $result + '&'
-    else if field.is_nullable
+    if field.is_bound_nullable
         $result = 'const ' + $result + '&'
     end
 
@@ -72,8 +70,8 @@ func cpp_offset_type(field)
     $result = ''
     if field.type == 'string'
         $result = 'flatbuffers::String'
-    else if field.is_nullable && field.type != 'string' && !field.is_custom_class
-        $result = 'nullable::nullable_' + field.type
+    else if field.is_bound_nullable
+        $result = 'nullable::' + (['nullable'] | array.concat field.fixed_namespace | array.add (field.type | string.downcase) | array.join '_')
     else if field.is_custom_class
         $result = field.fixed_namespace | array.add 'raw' | array.add field.type | array.join '::'
     else
@@ -116,27 +114,27 @@ end
 func cpp_create_field(raw_name, field)
     $result = ''
 
-    $flatbuffer_value = raw_name + '.' + field.name + '()'
+    $flatbuffer_offset = raw_name + '.' + field.name + '()'
     if field.type == 'array'
-        $flatbuffer_value = $flatbuffer_value + '->Get(i)'
+        $flatbuffer_offset = $flatbuffer_offset + '->Get(i)'
         field = field.array_element
     end
 
-    $cpp_value = $flatbuffer_value
-    if field.is_nullable && field.is_primitive && field.type != 'string'
-        $cpp_value = $flatbuffer_value + '->value()'
+    $cpp_value = $flatbuffer_offset
+    if field.is_bound_nullable
+        $cpp_value = $flatbuffer_offset + '->value()'
     end
 
     if field.type == 'string'
         $cpp_value = $cpp_value + '->c_str()'
     else if field.is_enum
-        $cpp_value = '(' + (field.fixed_reference | array.add field.type | array.join '::') + ')' + $cpp_value
+        $cpp_value = '(' + (field.fixed_namespace | array.add field.type | array.join '::') + ')' + $cpp_value
     else if field.is_custom_class
-        $cpp_value = '*' + $flatbuffer_value
+        $cpp_value = '*' + $flatbuffer_offset
     end
 
     if field.is_nullable
-        $result = $flatbuffer_value + ' != nullptr ? ' + $cpp_value + ' : ' + cpp_type(field) + '()'
+        $result = $flatbuffer_offset + ' != nullptr ? ' + $cpp_value + ' : ' + cpp_type(field) + '()'
     else
         $result = $cpp_value
     end

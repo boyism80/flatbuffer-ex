@@ -140,6 +140,24 @@ namespace FlatBufferEx.Model
                 return FixedNamespace.Concat(new[] { "raw" });
             }
         }
+
+        [JsonIgnore]
+        public bool IsBoundNullable
+        {
+            get
+            {
+                if (!IsNullable)
+                    return false;
+
+                if (IsCustomClass)
+                    return false;
+
+                if (Type == "string")
+                    return false;
+
+                return true;
+            }
+        }
     }
 
     public class Table
