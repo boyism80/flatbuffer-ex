@@ -108,6 +108,9 @@ func cpp_create_offset(field, field_name=null)
     end
 
     if field.is_nullable
+        if field.is_bound_nullable
+            $result = 'nullable::Create' + (['nullable'] | array.concat field.fixed_namespace | array.add (field.type | string.downcase) | array.each @cpp_mapped_kwd | array.join '_') + '(builder, ' + $result + ')'
+        end
         $result = field_name + '.has_value() ? ' + $result + ' : 0'
     end
 
