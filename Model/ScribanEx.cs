@@ -1,4 +1,5 @@
-﻿using Scriban.Runtime;
+﻿using Newtonsoft.Json;
+using Scriban.Runtime;
 
 namespace FlatBufferEx.Model
 {
@@ -29,6 +30,15 @@ namespace FlatBufferEx.Model
                 return value;
 
             return result;
+        }
+
+        public static Field CloneField(Field field)
+        {
+            var clone = JsonConvert.DeserializeObject<Field>(JsonConvert.SerializeObject(field));
+            clone.Context = field.Context;
+            clone.Scope = field.Scope;
+            clone.Table = field.Table;
+            return clone;
         }
 
         public static string CppMappedKwd(string value) => ToMappedKwd("c++", value);

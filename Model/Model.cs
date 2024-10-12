@@ -1,11 +1,14 @@
-﻿using Google.FlatBuffers;
+﻿using Newtonsoft.Json;
 
 namespace FlatBufferEx.Model
 {
     public class Field
     {
+        [JsonIgnore]
         public Context Context { get; set; }
+        [JsonIgnore]
         public Scope Scope { get; set; }
+        [JsonIgnore]
         public Table Table { get; set; }
         public string Name { get; set; }
         public string Type { get; set; }
@@ -33,8 +36,10 @@ namespace FlatBufferEx.Model
             }
         }
 
+        [JsonIgnore]
         public string Key => string.Join('.', ReferNamespace ?? new List<string>()) + Type;
 
+        [JsonIgnore]
         public IEnumerable<Field> NullableFields
         {
             get
@@ -52,18 +57,22 @@ namespace FlatBufferEx.Model
                     }
                 }
 
-                if (IsNullable)
+                if (IsNullable && Type != "string")
                 {
                     if (visit.Contains(Key) == false)
                         yield return this;
                 }
             }
         }
-
+        [JsonIgnore]
         public bool IsArray => Type == "array";
+        [JsonIgnore]
         public bool IsCustomClass => Context.IsCustomClass(this);
+        [JsonIgnore]
         public bool IsEnum => Context.IsEnum(this);
+        [JsonIgnore]
         public IEnumerable<string> Namespace => ReferNamespace ?? Scope.Namespace;
+        [JsonIgnore]
         public bool IsPrimitive
         {
             get
@@ -89,7 +98,8 @@ namespace FlatBufferEx.Model
                 }
             }
         }
-
+        
+        [JsonIgnore]
         public bool ContainsPrimitive
         {
             get
@@ -104,6 +114,7 @@ namespace FlatBufferEx.Model
             }
         }
 
+        [JsonIgnore]
         public IEnumerable<string> FixedNamespace
         {
             get
@@ -118,6 +129,7 @@ namespace FlatBufferEx.Model
             }
         }
 
+        [JsonIgnore]
         public IEnumerable<string> FixedRawNamespace
         {
             get

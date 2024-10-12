@@ -1,7 +1,26 @@
 {{~
-func cpp_type_from_str(type)
+func remove_nullable(field)
+    $clone = field | clone_field
+    $clone.is_nullable = false
+    ret $clone
+end
+
+func to_field(type)
+    ret {
+        context: null,
+        scope: null,
+        table: null,
+        name: null,
+        type: type,
+        refer_namespace: null,
+        array_element: null,
+        is_nullable: false
+    }
+end
+
+func cpp_type(field)
     $result = ''
-    case type
+    case field.type
         when "string"
             $result = "std::string"
         when "byte"
@@ -18,15 +37,12 @@ func cpp_type_from_str(type)
             $result = "unsigned long"
         when "array"
             $result = "std::vector<" + (field.array_element | @cpp_type) + ">"
+        when "bool"
+            $result = "bool"
         else
-            $result = type
+            $result = field.type
     end
 
-    ret $result
-end
-
-func cpp_type(field)
-    $result = @cpp_type_from_str(field.type)
     if field.refer_namespace
         $result = (field.refer_namespace | array.add $result | array.join '::')
     else if field.is_custom_class
@@ -40,7 +56,7 @@ func cpp_type(field)
     ret $result
 end
 
-func cpp_field_to_ctr_param(field)
+func cpp_decorate_const_ref(field)
     $result = field | @cpp_type
 
     if field.type == 'string'
@@ -52,59 +68,92 @@ func cpp_field_to_ctr_param(field)
     ret $result
 end
 
-func cpp_field_to_build_param(field)
+func cpp_offset_type(field)
     $result = ''
     if field.type == 'string'
-        if field.is_nullable
-            $result = 'builder.CreateString(this->' + field.name + '.value())'
-        else
-            $result = 'builder.CreateString(this->' + field.name + ')'
-        end
+        $result = 'flatbuffers::String'
+    else if field.is_nullable && field.type != 'string' && !field.is_custom_class
+        $result = 'nullable::nullable_' + field.type
     else if field.is_custom_class
-        $result = 'this->' + field.name + '.Build(builder)'
+        $result = field.fixed_namespace | array.add 'raw' | array.add field.type | array.join '::'
+    else
+        $result = field | @cpp_type
+    end
+
+    if !field.is_primitive || field.type == 'string' || field.is_nullable
+        ret 'flatbuffers::Offset<' + $result + '>'
+    else
+        ret $result
+    end
+end
+
+func cpp_create_offset(field)
+    $value = field.name
+    if field.is_nullable
+        $value = $value + '.value()'
+    end
+
+    $result = ''
+    if field.type == 'string'
+        $result = 'builder.CreateString(' + $value + ')'
+    else if field.is_custom_class
+        $result = $value + '.Build(builder)'
+    else if field.is_enum
+        $result = '(' + (field.fixed_namespace | array.add 'raw' | array.add field.type | array.join '::') + ')' + $value
     else if field.type == 'array'
         $result = 'this->Create' + (field.name | string.capitalize) + '(builder)'
-    else if field.is_enum
-        $result = '(' + (field.refer_namespace | array.add 'raw' | array.add field.type | array.join '::') + ')' + 'this->' + field.name
     else
-        $result = 'this->' + field.name
+        $result = $value
     end
 
     if field.is_nullable
-        if field.type == 'string'
-            $result = 'this->' + field.name + '.has_value() ? nullable::Createnullable_string(builder, ' + $result + ') : flatbuffers::Offset<nullable::nullable_string>{ 0 }'
-        else
-            $result = 'this->' + field.name + '.has_value() ? ' + $result + '.value() : 0'
-        end
+        $result = field.name + '.has_value() ? ' + $result + ': 0'
     end
 
     ret $result
 end
 
-func cpp_raw_to_field(field)
+func cpp_create_field(raw_name, field)
     $result = ''
+
+    $flatbuffer_value = raw_name + '.' + field.name + '()'
+    if field.type == 'array'
+        $flatbuffer_value = $flatbuffer_value + '->Get(i)'
+        field = field.array_element
+    end
+
+    $cpp_value = $flatbuffer_value
+    if field.is_nullable && field.is_primitive && field.type != 'string'
+        $cpp_value = $flatbuffer_value + '->value()'
+    end
+
     if field.type == 'string'
-        $result = 'raw.' + field.name + '()'
-    else if field.is_custom_class
-        $result = '*raw.' + field.name + '()'
+        $cpp_value = $cpp_value + '->c_str()'
     else if field.is_enum
-        $result = '(' + (field.refer_namespace | array.add field.type | array.join '::') + ')' + 'raw.' + field.name + '()'
+        $cpp_value = '(' + (field.fixed_reference | array.add field.type | array.join '::') + ')' + $cpp_value
+    else if field.is_custom_class
+        $cpp_value = '*' + $flatbuffer_value
+    end
+
+    if field.is_nullable
+        $result = $flatbuffer_value + ' != nullptr ? ' + $cpp_value + ' : ' + cpp_type(field) + '()'
     else
-        $result = 'raw.' + field.name + '()'
+        $result = $cpp_value
     end
 
-    if field.is_nullable
-        $result = $result + '->value()'
-    end
-
-    if field.type == 'string'
-        $result = $result + '->c_str()'
-    end
-
-    if field.is_nullable
-        $result = 'raw.' + field.name + '() != nullptr ? std::optional<' + (field.type | @cpp_type_from_str) + '>(' + $result + ') : std::optional<' + (field.type | @cpp_type_from_str) + '>()'
-    end
     ret $result
+end
+
+func cpp_access_nullable_value(value, field)
+    if !field.is_nullable
+        ret value
+    else if field.string || field.is_custom_class
+        ret '*' + value
+    else if field.is_primitive
+        ret value + '->value()'
+    else
+        ret 'unknown'
+    end
 end
 
 func is_array_type(field)
@@ -144,10 +193,10 @@ end
 #include <optional>
 {{~ for scope in context.scopes ~}}
 {{~ for enum in scope.enums ~}}
-#include <{{ include_path }}/{{ scope.namespace | array.join '.' | string.downcase }}.{{ enum.name | string.downcase }}_generated.h>
+#include <{{ if include_path != '' }}{{ include_path }}/{{ end }}{{ scope.namespace | array.join '.' | string.downcase }}.{{ enum.name | string.downcase }}_generated.h>
 {{~ end ~}}
 {{~ for table in scope.tables ~}}
-#include <{{ include_path }}/{{ scope.namespace | array.join '.' | string.downcase }}.{{ table.name | string.downcase }}_generated.h>
+#include <{{ if include_path != '' }}{{ include_path }}/{{ end }}{{ scope.namespace | array.join '.' | string.downcase }}.{{ table.name | string.downcase }}_generated.h>
 {{~ end ~}}
 {{~ end ~}}
 
@@ -156,7 +205,7 @@ end
 {{ for n in scope.namespace }}namespace {{ n }} { {{ end }}
 {{~ end ~}}
 {{~ for enum in scope.enums ~}}
-enum class {{ enum.name }} : {{ enum.type | @cpp_type_from_str }}
+enum class {{ enum.name }} : {{ to_field(enum.type) | @cpp_type }}
 {
 {{~ for value in enum.values ~}}
     {{ value }} = {{ enum.scope.namespace | array.add 'raw' | array.add enum.name | array.add enum.name + '_' + value | array.join '::' }},
@@ -201,24 +250,20 @@ public:
     { }
 
 {{~ if (table.fields | array.size) > 0 ~}}
-    {{ table.name }}({{ for field in table.fields }}{{ field | @cpp_field_to_ctr_param }} {{ field.name }}{{ if !for.last }}, {{end }}{{ end }})
+    {{ table.name }}({{ for field in table.fields }}{{ field | @cpp_decorate_const_ref }} {{ field.name }}{{ if !for.last }}, {{end }}{{ end }})
         : {{ for field in table.fields }}{{ field.name }}({{ field.name }}){{ if !for.last }}, {{ end }}{{ end }}
     { }
 {{~ end ~}}
 
     {{ table.name }}(const {{ scope.namespace | array.add 'raw' | array.add table.name | array.join '::' }}& raw)
 {{~ if (table.fields | array.filter @is_not_array_type | array.size) > 0~}}
-        : {{ for field in table.fields | array.filter @is_not_array_type }}{{ field.name }}({{ field | @cpp_raw_to_field }}){{ if !for.last }}, {{ end }}{{ end }}
+        : {{ for field in table.fields | array.filter @is_not_array_type }}{{ field.name }}({{ cpp_create_field('raw', field) }}){{ if !for.last }}, {{ end }}{{ end }}
 {{~ end ~}}
     {
 {{~ for field in table.fields | array.filter @is_array_type ~}}
         for (int i = 0; i < raw.{{ field.name }}()->size(); i++)
         {
-{{~ if field.array_element.is_nullable ~}}
-            this->{{ field.name }}.push_back(raw.{{ field.name }}()->Get(i) != nullptr ? std::optional<{{ field.array_element.type | @cpp_type_from_str }}>({{~ if field.array_element.is_enum ~}}({{ field.array_element.type }}){{~ end ~}}raw.{{ field.name }}()->Get(i)->value()) : std::optional<{{ field.array_element.type | @cpp_type_from_str }}>());
-{{~ else ~}}
-            this->{{ field.name }}.push_back(*raw.{{ field.name }}()->Get(i));
-{{~ end ~}}
+            this->{{ field.name }}.push_back({{ cpp_create_field('raw', field) }});
         }
 {{~ end ~}}
     }
@@ -228,23 +273,15 @@ private:
 {{~ for field in table.fields | array.filter @is_array_type ~}}
     auto Create{{ field.name | string.capitalize }}(flatbuffers::FlatBufferBuilder& builder) const
     {
-{{~ if field.array_element.is_nullable ~}}
-        auto result = std::vector<flatbuffers::Offset<nullable::nullable_{{ field.array_element.fixed_namespace | array.add field.array_element.type | array.join '_' | string.downcase }}>>();
-        for(auto& x : this->{{ field.name }})
+        auto result = std::vector<{{ field.array_element | @cpp_offset_type }}>();
+        for (auto& x : this->{{ field.name }})
         {
-            auto nullable_builder = nullable::nullable_{{ field.array_element.fixed_namespace | array.add field.array_element.type | array.join '_' | string.downcase }}Builder(builder);
-            if(x.has_value())
-                nullable_builder.add_value({{~ if field.array_element.is_enum ~}}({{ field.array_element.fixed_namespace | array.add 'raw' | array.add field.array_element.type | array.join '::' }}){{~ end ~}}x.value());
-            result.push_back(nullable_builder.Finish());
+{{~
+clone = field.array_element | clone_field
+clone.name = 'x'
+~}}
+            result.push_back({{ clone | @cpp_create_offset }});
         }
-{{~ else ~}}
-        auto result = std::vector<flatbuffers::Offset<{{ (field.array_element.namespace) | array.add 'raw' | array.add field.array_element.type | array.join '::' }}>>();
-        for(auto& x : this->{{ field.name }})
-        {
-            result.push_back(x.Build(builder));
-        }
-{{~ end ~}}
-
         return builder.CreateVector(result);
     }
 {{~ end ~}}
@@ -255,7 +292,7 @@ public:
     {
         return {{ scope.namespace | array.add 'raw' | array.add 'Create' + table.name | array.join '::' }}(builder{{ if (table.fields | array.size) > 0 }},
 {{~ for field in table.fields ~}}
-            {{ field | @cpp_field_to_build_param }}{{ if !for.last }},
+            {{ field | @cpp_create_offset }}{{ if !for.last }},
 {{ end }}{{~ end ~}}{{ end }});
     }
 

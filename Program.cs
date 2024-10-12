@@ -101,7 +101,9 @@ namespace FlatBufferExample
                     Console.WriteLine(line);
                 }
 
+#if !DEBUG
                 Directory.Delete(rawFilePath, true);
+#endif
                 if (p.ExitCode != 0)
                     Environment.Exit(p.ExitCode);
 

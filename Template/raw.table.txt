@@ -1,35 +1,32 @@
 {{~
 func generate_type(field)
-  type = field.type
-  if field.is_nullable
-    type = 'nullable_' + (field.fixed_namespace | array.add type | array.join '_' | string.downcase)
-    type = 'nullable.' + type
-  end
-
-  $result = ''
-  if field.type == 'array'
-    $result = '[' + generate_type(field.array_element) + ']'
-  else
-    if field.refer_namespace
-      if field.is_nullable
-        $result = type
-      else
-        $result = (field.refer_namespace | array.add 'raw' | array.add type | array.each @mapped_kwd | array.join '.')
-      end
-    else
-      $result = type
+    if field.type == 'array'
+        ret '[' + generate_type(field.array_element) + ']'
     end
-  end
 
-  ret $result
+    $ns = field.fixed_namespace
+    if ($ns | array.size) > 0
+        $ns = $ns | array.add 'raw'
+    end
+
+    $result = $ns | array.add field.type | array.each @mapped_kwd | array.join '.'
+
+    if field.is_nullable
+        if field.is_primitive && field.type != 'string'
+            $result = 'nullable.nullable_' + field.type
+        end
+    end
+    ret $result
 end
 
 func mapped_kwd(value)
-	ret to_mapped_kwd(lang, value)
+    ret to_mapped_kwd(lang, value)
 end
 ~}}
 {{~ for nullable_field in table.nullable_fields ~}}
+{{~ if nullable_field.is_primitive || nullable_field.is_enum ~}}
 include "nullable_{{ nullable_field.fixed_namespace | array.add nullable_field.type | array.join '_' | string.downcase }}.fbs";
+{{~ end ~}}
 {{~ end ~}}
 {{~ for reference_file in table.reference_files ~}}
 include "{{ reference_file }}.fbs";
@@ -39,7 +36,7 @@ namespace {{ table.scope.namespace | array.add 'raw' | array.each @mapped_kwd | 
 
 table {{ table.name }} {
 {{~ for field in table.fields ~}}
-  {{ field.name }}: {{ field | generate_type }};
+    {{ field.name }}: {{ field | generate_type }};
 {{~ end ~}}
 }
 root_type {{ table.name }};
