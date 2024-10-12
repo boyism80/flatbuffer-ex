@@ -59,7 +59,7 @@ end
 func cpp_decorate_const_ref(field)
     $result = field | @cpp_type
 
-    if field.is_bound_nullable
+    if field.is_nullable || field.type == 'string' || field.is_custom_class
         $result = 'const ' + $result + '&'
     end
 
@@ -85,8 +85,11 @@ func cpp_offset_type(field)
     end
 end
 
-func cpp_create_offset(field)
-    $value = field.name
+func cpp_create_offset(field, field_name=null)
+    if field_name == null
+        field_name = field.name
+    end
+    $value = field_name
     if field.is_nullable
         $value = $value + '.value()'
     end
@@ -105,7 +108,7 @@ func cpp_create_offset(field)
     end
 
     if field.is_nullable
-        $result = field.name + '.has_value() ? ' + $result + ': 0'
+        $result = field_name + '.has_value() ? ' + $result + ' : 0'
     end
 
     ret $result
@@ -274,11 +277,7 @@ private:
         auto result = std::vector<{{ field.array_element | @cpp_offset_type }}>();
         for (auto& x : this->{{ field.name }})
         {
-{{~
-clone = field.array_element | clone_field
-clone.name = 'x'
-~}}
-            result.push_back({{ clone | @cpp_create_offset }});
+            result.push_back({{ cpp_create_offset(field.array_element, 'x') }});
         }
         return builder.CreateVector(result);
     }
@@ -290,7 +289,7 @@ public:
     {
         return {{ scope.namespace | array.add 'raw' | array.add 'Create' + table.name | array.join '::' }}(builder{{ if (table.fields | array.size) > 0 }},
 {{~ for field in table.fields ~}}
-            {{ field | @cpp_create_offset }}{{ if !for.last }},
+            {{ cpp_create_offset(field, 'this->' + field.name) }}{{ if !for.last }},
 {{ end }}{{~ end ~}}{{ end }});
     }
 
