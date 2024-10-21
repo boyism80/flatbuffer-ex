@@ -221,7 +221,7 @@ template <> struct FlatBufferOffset<{{ enum.namespace | array.add enum.name | ar
 template <typename T> struct FlatBufferOffset<std::optional<T>> { typedef FlatBufferOffset<typename T>::type type; };
 template <typename T> struct FlatBufferOffset<std::vector<T>> { typedef flatbuffers::Offset<flatbuffers::Vector<typename FlatBufferOffset<T>::type>> type; };
 
-template <typename T>
+template <typename T> inline static
 typename FlatBufferOffset<T>::type build(FlatBufferBuilder& builder, const T& value)
 {
     if constexpr (is_optional<T>)
@@ -287,7 +287,7 @@ Offset<Vector<Offset<{{ array_field.array_element.fixed_namespace | array.add 'r
 {{~ end ~}}
 {{~ end ~}}
 
-template <typename T>
+template <typename T> inline static
 std::vector<T> unpack(const flatbuffers::Vector<typename FlatBufferOffset<T>::type> *value)
 {
     auto result = std::vector<T>();
