@@ -38,6 +38,9 @@ namespace FlatBufferEx.Model
             clone.Context = field.Context;
             clone.Scope = field.Scope;
             clone.Table = field.Table;
+            if (field.ArrayElement != null)
+                clone.ArrayElement = CloneField(field.ArrayElement);
+
             return clone;
         }
 

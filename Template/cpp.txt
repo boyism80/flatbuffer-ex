@@ -90,28 +90,11 @@ func cpp_create_offset(field, field_name=null)
         field_name = field.name
     end
     $value = field_name
-    if field.is_nullable
-        $value = $value + '.value()'
-    end
-
     $result = ''
-    if field.type == 'string'
-        $result = 'builder.CreateString(' + $value + ')'
-    else if field.is_custom_class
-        $result = $value + '.Build(builder)'
-    else if field.is_enum
+    if field.is_enum
         $result = '(' + (field.fixed_namespace | array.add 'raw' | array.add field.type | array.join '::') + ')' + $value
-    else if field.type == 'array'
-        $result = 'this->Create' + (field.name | string.capitalize) + '(builder)'
     else
-        $result = $value
-    end
-
-    if field.is_nullable
-        if field.is_bound_nullable
-            $result = 'nullable::Create' + (['nullable'] | array.concat field.fixed_namespace | array.add (field.type | string.downcase) | array.each @cpp_mapped_kwd | array.join '_') + '(builder, ' + $result + ')'
-        end
-        $result = field_name + '.has_value() ? ' + $result + ' : 0'
+        $result = 'flatbuffers::build<' + cpp_type(field) + '>(builder, ' + $value + ')'
     end
 
     ret $result
@@ -121,11 +104,6 @@ func cpp_create_field(raw_name, field)
     $result = ''
 
     $flatbuffer_offset = raw_name + '.' + field.name + '()'
-    if field.type == 'array'
-        $flatbuffer_offset = $flatbuffer_offset + '->Get(i)'
-        field = field.array_element
-    end
-
     $cpp_value = $flatbuffer_offset
     if field.is_bound_nullable
         $cpp_value = $flatbuffer_offset + '->value()'
@@ -137,6 +115,12 @@ func cpp_create_field(raw_name, field)
         $cpp_value = '(' + (field.fixed_namespace | array.add field.type | array.join '::') + ')' + $cpp_value
     else if field.is_custom_class
         $cpp_value = '*' + $flatbuffer_offset
+    else if field.is_array
+        if field.array_element.is_primitive
+            $cpp_value = 'unpack<' + cpp_type(field.array_element) + '>(raw.' + field.name + '())'
+        else
+            $cpp_value = 'unpack<' + cpp_type(field.array_element) + '>(raw.' + field.name + '())'
+        end
     end
 
     if field.is_nullable
@@ -160,14 +144,6 @@ func cpp_access_nullable_value(value, field)
     end
 end
 
-func is_array_type(field)
-    ret field.type == 'array'
-end
-
-func is_not_array_type(field)
-    ret field.type != 'array'
-end
-
 func cpp_default_value(field)
     $result = ''
     if field.is_nullable
@@ -180,6 +156,8 @@ func cpp_default_value(field)
             $result = "0"
         when "bool"
             $result = "false"
+        when "array"
+            $result = "{}"
         end
     end
 
@@ -203,6 +181,149 @@ end
 #include <{{ if include_path != '' }}{{ include_path }}/{{ end }}{{ scope.namespace | array.join '.' | string.downcase }}.{{ table.name | string.downcase }}_generated.h>
 {{~ end ~}}
 {{~ end ~}}
+
+{{~ for scope in context.scopes ~}}
+namespace {{ scope.namespace | array.join '::' }}
+{
+{{~ for table in scope.tables ~}}
+    class {{ table.name }};
+{{~ end ~}}
+}
+{{~ end ~}}
+
+
+namespace flatbuffers {
+template<typename>   constexpr bool is_optional_impl = false;
+template<typename T> constexpr bool is_optional_impl<std::optional<T>> = true;
+template<> constexpr bool is_optional_impl<std::nullopt_t> = true;
+template<typename T>  constexpr bool is_optional = is_optional_impl<std::decay_t<T>>;
+
+template<typename>   constexpr bool is_vector_impl = false;
+template<typename T> constexpr bool is_vector_impl<std::vector<T>> = true;
+template<typename T>  constexpr bool is_vector = is_vector_impl<std::decay_t<T>>;
+
+
+template <typename T> struct FlatBufferOffset { typedef T type; };
+template <> struct FlatBufferOffset<std::string> { typedef Offset<String> type; };
+{{~ for field in context.nullable_fields ~}}
+{{~ if field.is_primitive ~}}
+template <> struct FlatBufferOffset<{{ field | @cpp_type }}> { typedef Offset< nullable::nullable_{{ field.type }}> type; };
+{{~ end ~}}
+{{~ end ~}}
+{{~ for scope in context.scopes ~}}
+{{~ for table in scope.tables ~}}
+template <> struct FlatBufferOffset<{{ table.scope.namespace | array.add table.name | array.join '::' }}> { typedef Offset<{{ table.scope.namespace | array.add 'raw' | array.add table.name | array.join '::' }}> type; };
+{{~ end ~}}
+{{~ end ~}}
+{{~ for enum in context.enums ~}}
+template <> struct FlatBufferOffset<{{ enum.namespace | array.add enum.name | array.join '::' }}> { typedef {{ enum.namespace | array.add 'raw' | array.add enum.name | array.join '::' }} type; };
+{{~ end ~}}
+template <typename T> struct FlatBufferOffset<std::optional<T>> { typedef FlatBufferOffset<typename T>::type type; };
+template <typename T> struct FlatBufferOffset<std::vector<T>> { typedef flatbuffers::Offset<flatbuffers::Vector<typename FlatBufferOffset<T>::type>> type; };
+
+template <typename T>
+typename FlatBufferOffset<T>::type build(FlatBufferBuilder& builder, const T& value)
+{
+    if constexpr (is_optional<T>)
+    {
+        if (!value.has_value())
+            return 0;
+{{~ for nullable_field in context.nullable_fields ~}}
+{{~ if nullable_field.is_primitive ~}}
+        if constexpr (std::is_same_v<T, {{ nullable_field | @cpp_type }}>)
+        {
+            return nullable::Createnullable_{{ nullable_field.type }}(builder, value.value());
+        }
+
+{{~ end ~}}
+{{~ end ~}}
+        return build<typename T::value_type>(builder, value.value());
+    }
+    else if constexpr (is_vector<T>)
+    {
+        if constexpr (std::is_fundamental_v<typename T::value_type>)
+        {
+            return builder.CreateVector(value);
+        }
+        else
+        {
+            auto buffer = std::vector<typename FlatBufferOffset<typename T::value_type>::type>();
+            for (auto& x : value)
+            {
+                buffer.push_back(build<typename T::value_type>(builder, x));
+            }
+            return builder.CreateVector(buffer);
+        }
+    }
+    else if constexpr (std::is_enum_v<T>)
+    {
+        return static_cast<typename FlatBufferOffset<T>::type>(value);
+    }
+    else
+    {
+        return value;
+    }
+}
+
+template <> 
+Offset<String> build<std::string>(FlatBufferBuilder& builder, const std::string& value);
+
+{{~ for scope in context.scopes ~}}
+{{~ for table in scope.tables ~}}
+template <>
+Offset<{{ scope.namespace | array.add 'raw' | array.add table.name | array.join '::' }}> build<{{ scope.namespace | array.add table.name | array.join '::' }}>(FlatBufferBuilder& builder, const {{ scope.namespace | array.add table.name | array.join '::' }}& value);
+{{~ end ~}}
+{{~ end ~}}
+
+{{~ for array_field in context.array_fields ~}}
+{{~ if array_field.array_element.is_primitive ~}}
+{{~ if array_field.array_element.is_nullable ~}}
+Offset<Vector<Offset<nullable::nullable_{{ array_field.array_element.type }}>>> build(FlatBufferBuilder& builder, const {{ array_field | @cpp_type }}& value);
+{{~ else ~}}
+Offset<Vector<{{ array_field.array_element | @cpp_type }}>> build(FlatBufferBuilder& builder, const {{ array_field | @cpp_type }}& value);
+{{~ end ~}}
+{{~ else ~}}
+Offset<Vector<Offset<{{ array_field.array_element.fixed_namespace | array.add 'raw' | array.add array_field.array_element.type | array.join '::' }}>>> build(FlatBufferBuilder& builder, const {{ array_field | @cpp_type }}& value);
+{{~ end ~}}
+{{~ end ~}}
+
+template <typename T>
+std::vector<T> unpack(const flatbuffers::Vector<typename FlatBufferOffset<T>::type> *value)
+{
+    auto result = std::vector<T>();
+    for (int i = 0; i < value->size(); i++)
+    {
+        if constexpr (is_optional<T>)
+        {
+            if (value->Get(i) == nullptr)
+            {
+                result.push_back(std::nullopt);
+            }
+            else if constexpr (std::is_fundamental_v<typename T::value_type>)
+            {
+                result.push_back(value->Get(i)->value());
+            }
+            else
+            {
+                result.push_back(*value->Get(i));
+            }
+        }
+        else
+        {
+            if constexpr (std::is_fundamental_v<T>)
+            {
+                result.push_back(value->Get(i));
+            }
+            else
+            {
+                result.push_back(*value->Get(i));
+            }
+        }
+    }
+    return result;
+}
+
+}
 
 {{~ for scope in context.scopes ~}}
 {{~ if (scope.enums | array.size) > 0 ~}}
@@ -260,46 +381,16 @@ public:
 {{~ end ~}}
 
     {{ table.name }}(const {{ scope.namespace | array.add 'raw' | array.add table.name | array.join '::' }}& raw)
-{{~ if (table.fields | array.filter @is_not_array_type | array.size) > 0~}}
-        : {{ for field in table.fields | array.filter @is_not_array_type }}{{ field.name }}({{ cpp_create_field('raw', field) }}){{ if !for.last }}, {{ end }}{{ end }}
+{{~ if (table.fields | array.size) > 0~}}
+        : {{ for field in table.fields }}{{ field.name }}({{ cpp_create_field('raw', field) }}){{ if !for.last }}, {{ end }}{{ end }}
 {{~ end ~}}
-    {
-{{~ for field in table.fields | array.filter @is_array_type ~}}
-        for (int i = 0; i < raw.{{ field.name }}()->size(); i++)
-        {
-            this->{{ field.name }}.push_back({{ cpp_create_field('raw', field) }});
-        }
-{{~ end ~}}
-    }
-
-{{~ if (table.fields | array.filter @is_array_type | array.size) > 0 ~}}
-private:
-{{~ for field in table.fields | array.filter @is_array_type ~}}
-    auto Create{{ field.name | string.capitalize }}(flatbuffers::FlatBufferBuilder& builder) const
-    {
-        auto result = std::vector<{{ field.array_element | @cpp_offset_type }}>();
-        for (auto& x : this->{{ field.name }})
-        {
-            result.push_back({{ cpp_create_offset(field.array_element, 'x') }});
-        }
-        return builder.CreateVector(result);
-    }
-{{~ end ~}}
-{{~ end ~}}
+    { }
 
 public:
-    auto Build(flatbuffers::FlatBufferBuilder& builder) const
-    {
-        return {{ scope.namespace | array.add 'raw' | array.add 'Create' + table.name | array.join '::' }}(builder{{ if (table.fields | array.size) > 0 }},
-{{~ for field in table.fields ~}}
-            {{ cpp_create_offset(field, 'this->' + field.name) }}{{ if !for.last }},
-{{ end }}{{~ end ~}}{{ end }});
-    }
-
     std::vector<uint8_t> Serialize() const
     {
         auto builder = flatbuffers::FlatBufferBuilder();
-        builder.Finish(this->Build(builder));
+        builder.Finish(build<{{ table.scope.namespace | array.add table.name | array.join '::' }}>(builder, *this));
         auto size = builder.GetSize();
         auto result = std::vector<uint8_t>(size);
         std::memcpy(result.data(), builder.GetBufferPointer(), size);
@@ -315,5 +406,63 @@ public:
 {{~ end ~}}
 {{ for n in scope.namespace }}} {{ end }}
 {{~ end ~}}
+
+namespace flatbuffers {
+
+template <> 
+Offset<String> build<std::string>(FlatBufferBuilder& builder, const std::string& value)
+{
+    return builder.CreateString(value);
+}
+
+{{~ for scope in context.scopes ~}}
+{{~ for table in scope.tables ~}}
+template <>
+Offset<{{ scope.namespace | array.add 'raw' | array.add table.name | array.join '::' }}> build<{{ scope.namespace | array.add table.name | array.join '::' }}>(FlatBufferBuilder& builder, const {{ scope.namespace | array.add table.name | array.join '::' }}& value)
+{
+    return {{ scope.namespace | array.add 'raw' | array.add 'Create' + table.name | array.join '::' }}(builder{{ if (table.fields | array.size) > 0 }},
+{{~ for field in table.fields ~}}
+            {{ cpp_create_offset(field, 'value.' + field.name) }}{{ if !for.last }},
+{{ end }}{{~ end ~}}{{ end }});
+}
+{{~ end ~}}
+{{~ end ~}}
+
+{{~ for array_field in context.array_fields ~}}
+{{~ if array_field.array_element.is_primitive ~}}
+{{~ if array_field.array_element.is_nullable ~}}
+Offset<Vector<Offset<nullable::nullable_{{ array_field.array_element.type }}>>> build(FlatBufferBuilder& builder, const {{ array_field | @cpp_type }}& value)
+{{~ else ~}}
+Offset<Vector<{{ array_field.array_element | @cpp_type }}>> build(FlatBufferBuilder& builder, const {{ array_field | @cpp_type }}& value)
+{{~ end ~}}
+{
+{{~ if array_field.array_element.is_nullable ~}}
+    auto result = std::vector<Offset<nullable::nullable_{{ array_field.array_element.type }}>>();
+    for (auto& x : value)
+    {
+        if (x.has_value())
+            result.push_back(flatbuffers::build<{{ array_field.array_element | @cpp_type }}>(builder, x));
+        else
+            result.push_back(0);
+    }
+    return builder.CreateVector(result);
+{{~ else ~}}
+    return builder.CreateVector(value);
+{{~ end ~}}
+}
+{{~ else ~}}
+Offset<Vector<Offset<{{ array_field.array_element.fixed_namespace | array.add 'raw' | array.add array_field.array_element.type | array.join '::' }}>>> build(FlatBufferBuilder& builder, const {{ array_field | @cpp_type }}& value)
+{
+    auto result = std::vector<Offset<{{ array_field.array_element.fixed_namespace | array.add 'raw' | array.add array_field.array_element.type | array.join '::' }}>>();
+    for (auto& x : value)
+    {
+        result.push_back(flatbuffers::build<{{ array_field.array_element | @cpp_type }}>(builder, x));
+    }
+    return builder.CreateVector(result);
+}
+{{~ end ~}}
+{{~ end ~}}
+
+}
 
 #endif

@@ -1,5 +1,4 @@
 ﻿using FlatBufferEx.Model;
-using System.ComponentModel.Design.Serialization;
 using System.Text.RegularExpressions;
 using Enum = FlatBufferEx.Model.Enum;
 
@@ -7,7 +6,7 @@ namespace FlatBufferEx
 {
     public static class Parser
     {
-        private static readonly Regex FieldRegEx = new Regex(@"\s*(?<name>[_a-zA-Z][_a-zA-Z0-9]*)\s*:\s*(?<type>\[?[_a-zA-Z][_a-zA-Z0-9\.]*\??\]?\??)(?:\s*=\s*(?<init>.+))?\s*(?<deprecated>\(deprecated\))?\s*;");
+        private static readonly Regex FieldRegEx = new Regex(@"\s*(?<name>[_a-zA-Z][_a-zA-Z0-9]*)\s*:\s*(?<type>\[*[_a-zA-Z][_a-zA-Z0-9\.]*\??\]*\??)(?:\s*=\s*(?<init>.+))?\s*(?<deprecated>\(deprecated\))?\s*;");
         private static readonly Regex TableRegEx = new Regex(@"(?<type>struct|table)\s+(?<name>[_a-zA-Z][_a-zA-Z0-9]*)\s*{(?<contents>[\s\S]*?)}");
         private static readonly Regex EnumRegEx = new Regex(@"enum\s+(?<name>[_a-zA-Z][_a-zA-Z0-9]*)\s*:\s*(?<type>[a-zA-Z]+)\s+{\s*(?<contents>.+)\s*}");
         private static readonly Regex NamespaceRegEx = new Regex(@"namespace\s+(?<name>[_a-zA-Z][_a-zA-Z0-9\.]*);");
@@ -64,6 +63,8 @@ namespace FlatBufferEx
             field.IsNullable = RemoveNullableType(ref type);
             if (RemoveArrayType(ref type))
             {
+                if (field.IsNullable)
+                    throw new Exception("array cannot be null type");
                 field.Type = "array";
                 field.ArrayElement = GetField(context, scope, table, type);
             }

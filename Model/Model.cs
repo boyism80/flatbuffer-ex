@@ -37,17 +37,34 @@ namespace FlatBufferEx.Model
         }
 
         [JsonIgnore]
-        public string Key => string.Join('.', ReferNamespace ?? new List<string>()) + Type;
+        public string Key
+        {
+            get
+            {
+                var key = string.Empty;
+                if (IsArray)
+                    key = $"[{ArrayElement.Type}]";
+                else
+                    key = string.Join('.', ReferNamespace ?? new List<string>()) + Type;
+                if (IsNullable)
+                    key = $"{key}?";
+
+                return key;
+            }
+        }
 
         [JsonIgnore]
-        public IEnumerable<Field> NullableFields
+        public IEnumerable<Field> NullableFields => AllFields.Where(x => x.IsNullable).Where(x => x.Type != "string");
+
+        [JsonIgnore]
+        public IEnumerable<Field> AllFields
         {
             get
             {
                 var visit = new HashSet<string>();
                 if (ArrayElement != null)
                 {
-                    foreach (var field in ArrayElement.NullableFields)
+                    foreach (var field in ArrayElement.AllFields)
                     {
                         if (visit.Contains(field.Key))
                             continue;
@@ -57,13 +74,10 @@ namespace FlatBufferEx.Model
                     }
                 }
 
-                if (IsNullable && Type != "string")
-                {
-                    if (visit.Contains(Key) == false)
-                        yield return this;
-                }
+                yield return this;
             }
         }
+
         [JsonIgnore]
         public bool IsArray => Type == "array";
         [JsonIgnore]
@@ -170,7 +184,10 @@ namespace FlatBufferEx.Model
         public bool Root { get; set; }
         public List<string> Namespace { get; set; }
 
+        [JsonIgnore]
         public bool ContainsNullableField => Fields.Any(x => x.IsNullable);
+        
+        [JsonIgnore]
         public IEnumerable<string> ReferenceFiles
         {
             get
@@ -180,20 +197,23 @@ namespace FlatBufferEx.Model
             }
         }
 
-        public IEnumerable<Field> NullableFields
-        {
-            get
-            {
-                var visit = new HashSet<string>();
-                foreach (var field in Fields.SelectMany(x => x.NullableFields))
-                {
-                    if (visit.Contains(field.Key))
-                        continue;
+        [JsonIgnore]
+        public IEnumerable<Field> NullableFields => Fields.SelectMany(x => x.NullableFields).GroupBy(x => x.Key).Select(g => g.First());
 
-                    visit.Add(field.Key);
-                    yield return field;
-                }
-            }
+        [JsonIgnore]
+        public IEnumerable<Field> AllFields => Fields.SelectMany(x => x.AllFields).Concat(new[] { ToField() } ).GroupBy(x => x.Key).Select(g => g.First());
+
+        public Field ToField()
+        {
+            return new Field
+            { 
+                Context = Context,
+                Scope = Scope,
+                Table = this,
+                Name = Name,
+                Type = Type,
+                ReferNamespace = Namespace,
+            };
         }
     }
 
@@ -270,25 +290,11 @@ namespace FlatBufferEx.Model
             return false;
         }
 
-        public IEnumerable<Field> NullableFields
-        {
-            get
-            {
-                var visit = new HashSet<string>();
+        public IEnumerable<Field> NullableFields => AllFields.Where(x => x.IsNullable && x.Type != "string" && x.Type != "array");
 
-                foreach (var scope in Scopes)
-                {
-                    foreach (var field in scope.Tables.SelectMany(x => x.NullableFields))
-                    {
-                        if (visit.Contains(field.Key))
-                            continue;
+        public IEnumerable<Field> AllFields => Scopes.SelectMany(x => x.Tables).SelectMany(x => x.AllFields).GroupBy(x => x.Key).Select(g => g.First());
 
-                        visit.Add(field.Key);
-                        yield return field;
-                    }
-                }
-            }
-        }
+        public IEnumerable<Field> ArrayFields => AllFields.Where(x => x.IsArray);
     }
 
     public class FlatBufferFileInfo
