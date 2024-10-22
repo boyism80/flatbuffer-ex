@@ -60,6 +60,7 @@ namespace FlatBufferExample
                 { "i|include=", "include directory path", v => includePath = v },
             };
             options.Parse(args);
+            output = Path.GetFullPath(output);
 
 #if !DEBUG
             await Http.DownloadFile("https://github.com/google/flatbuffers/releases/download/v24.3.25/Windows.flatc.binary.zip", "flatbuffer.zip");
