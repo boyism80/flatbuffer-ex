@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "FlatBufferEx": {
+      "commandName": "Project",
+      "commandLineArgs": "-o D:\\Users\\CSHYEON\\Desktop\\NullableCS"
+    }
+  }
+}

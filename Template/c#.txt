@@ -38,40 +38,6 @@ func cs_type(field)
     ret $result
 end
 
-func create_offset(field, fix_name=false)
-    $result = ''
-    $name = field.name
-    if !fix_name
-        $name = $name | upper_camel
-    end
-    if field.type == 'string'
-        $result = 'builder.CreateString(' + $name + ')'
-    else if field.is_custom_class
-        $result = $name + '.Build(builder)'
-    else if field.type == 'array'
-        $clone = field.array_element | clone_field
-        $clone.name = 'x'
-        $result = (field.scope.namespace | array.add 'raw' | array.add field.table.name | array.add 'Create' + $name + 'Vector' | array.join '.') + '(builder, ' + $name + '.Select(x => ' + create_offset($clone, true) + ').ToArray())'
-    else if field.is_enum
-        $result = '(' + (field.fixed_namespace | array.add 'raw' | array.add field.type | array.each @cs_mapped_kwd | array.join '.') +')' + $name
-    else
-        $result = $name
-    end
-
-    if field.is_bound_nullable
-        $nullable_name = (['nullable'] | array.concat field.fixed_namespace | array.add field.type | array.join '_' | string.downcase)
-        $clone = field | @clone_field
-        $clone.name = $name + '.Value'
-        $clone.is_nullable = false
-        $result = $nullable_name + '.Create' + $nullable_name + '(builder, ' + create_offset($clone, true) + ')'
-    end
-
-    if field.is_nullable
-        $result = $name + ' != null ? ' + $result + ' : default'
-    end
-    ret $result
-end
-
 func cs_access_nullable_value(value, field)
     if field.is_custom_class
         ret value + '.Value'
@@ -153,6 +119,25 @@ func cs_default_value(field)
 
     ret $result
 end
+
+func cs_field_size(field)
+    if field.is_nullable
+        ret 4
+    end
+
+    case field.type
+    when 'byte', 'ubyte', 'bool'
+        ret 1
+    when 'short', 'ushort'
+        ret 2
+    when 'int', 'uint', 'float'
+        ret 4
+    when 'long', 'ulong', 'double'
+        ret 8
+    end
+
+    ret 4
+end
 ~}}
 using Google.FlatBuffers;
 using nullable;
@@ -169,6 +154,76 @@ namespace Google.FlatBuffers
 {{~ for scope in context.scopes ~}}
 namespace {{ scope.namespace | array.each @cs_mapped_kwd | array.join '.' }}
 {
+    public static class FlatBufferBuilderEx
+    {
+        public static T Build<T>(this FlatBufferBuilder builder, T value)
+        {
+            return value;
+        }
+
+        public static StringOffset Build(this FlatBufferBuilder builder, string value)
+        {
+            return builder.CreateString(value);
+        }
+
+{{~ for nullable_field in context.nullable_fields ~}}
+{{~ if nullable_field.is_primitive ~}}
+        public static Offset<nullable_{{ nullable_field.type }}> Build(this FlatBufferBuilder builder, {{ nullable_field | @cs_type }} value)
+        {
+            if (value.HasValue)
+                return nullable.nullable_{{ nullable_field.type }}.Createnullable_{{ nullable_field.type }}(builder, value.Value);
+            else
+                return default;
+        }
+{{~ end ~}}
+{{~ end ~}}
+{{~ for scope in context.scopes ~}}
+{{~ for table in scope.tables ~}}
+        public static Offset<{{ table.scope.namespace | array.add 'raw' | array.add table.name | array.each @cs_mapped_kwd | array.join '.' }}> Build(this FlatBufferBuilder builder, {{ table.scope.namespace | array.add table.name | array.each @cs_mapped_kwd | array.join '.' }} value)
+        {
+            if (value == null)
+                return default;
+
+{{~ if (table.fields | array.size) > 0 ~}}
+            return {{ table.scope.namespace | array.add 'raw' | array.add table.name | array.each @cs_mapped_kwd | array.join '.' }}.Create{{ table.name }}(builder,
+{{~ for field in table.fields ~}}
+                builder.Build(value.{{ field.name | upper_camel }}){{ if !for.last }},
+{{~ end ~}}
+{{~ end ~}});
+{{~ else ~}}
+            {{ table.scope.namespace | array.add 'raw' | array.each @cs_mapped_kwd | array.add table.name | array.add ('Start' + table.name) | array.join '.'}}(builder);
+            return {{ table.scope.namespace | array.add 'raw' | array.each @cs_mapped_kwd | array.add table.name | array.add ('End' + table.name) | array.join '.'}}(builder);
+{{~ end ~}}
+        }
+{{~ end ~}}
+{{~ end ~}}
+{{~ for field in context.array_fields ~}}
+        public static VectorOffset Build(this FlatBufferBuilder builder, List<{{ field.array_element | @cs_type }}> value)
+        {
+{{~ if field.array_element.is_primitive ~}}
+            builder.StartVector(1, value.Count, {{ field.array_element | @cs_field_size}});
+{{~ if field.array_element.is_nullable ~}}
+            builder.Add(value.Select(x => builder.Build(x)).ToArray());
+{{~ else ~}}
+            builder.Add(value.ToArray());
+{{~ end ~}}
+            return builder.EndVector();
+{{~ else ~}}
+            builder.CreateVectorOfTables<{{ field.array_element.fixed_namespace | array.add 'raw' | array.add field.array_element.type | array.each @cs_mapped_kwd | array.join '.' }}>(value.Select(x => Build(builder, x)).ToArray());
+            return default;
+{{~ end ~}}
+        }
+{{~ end ~}}
+{{~ for scope in context.scopes ~}}
+{{~ for enum in scope.enums ~}}
+        public static {{ enum.scope.namespace | array.add 'raw' | array.add enum.name | array.each @cs_mapped_kwd | array.join '.' }} Build(this FlatBufferBuilder builder, {{ enum.scope.namespace | array.add enum.name | array.each @cs_mapped_kwd | array.join '.' }} value)
+        {
+            return ({{ enum.scope.namespace | array.add 'raw' | array.add enum.name | array.each @cs_mapped_kwd | array.join '.' }})value;
+        }
+{{~ end ~}}
+{{~ end ~}}
+    }
+
     public enum FlatBufferProtocolType
     { 
 {{~ for table in scope.tables ~}}
@@ -211,24 +266,10 @@ namespace {{ scope.namespace | array.each @cs_mapped_kwd | array.join '.' }}
         public {{ table.name }}(byte[] bytes) : this({{ scope.namespace | array.add 'raw' | array.add table.name | array.each @cs_mapped_kwd | array.join '.' }}.GetRootAs{{ table.name }}(new ByteBuffer(bytes)))
         { }
 
-        public Offset<{{ scope.namespace | array.add 'raw' | array.add table.name | array.each @cs_mapped_kwd | array.join '.' }}> Build(FlatBufferBuilder builder)
-        {
-{{~ if (table.fields | array.size) > 0 ~}}
-            return {{ scope.namespace | array.add 'raw' | array.add table.name | array.each @cs_mapped_kwd | array.join '.' }}.Create{{ table.name }}(builder,
-{{~ for field in table.fields ~}}
-                {{ field | @create_offset }}{{ if !for.last }},
-{{~ end ~}}
-{{~ end ~}});
-{{~ else ~}}
-            {{ table.scope.namespace | array.add 'raw' | array.each @cs_mapped_kwd | array.add table.name | array.add ('Start' + table.name) | array.join '.'}}(builder);
-            return {{ table.scope.namespace | array.add 'raw' | array.each @cs_mapped_kwd | array.add table.name | array.add ('End' + table.name) | array.join '.'}}(builder);
-{{~ end ~}}
-        }
-
         public byte[] Serialize()
         {
             var builder = new FlatBufferBuilder(1);
-            var offset = Build(builder);
+            var offset = builder.Build(this);
             builder.Finish(offset.Value);
             return builder.SizedByteArray();
         }

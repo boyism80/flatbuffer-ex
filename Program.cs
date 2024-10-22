@@ -49,7 +49,7 @@ namespace FlatBufferExample
         static async Task Main(string[] args)
         {
             var path = @"D:\Users\CSHYEON\Data\git\game\c++\fb\protocol";
-            var output = "D:\\Users\\CSHYEON\\Desktop\\NullableCS";
+            var output = "output";
             var includePath = string.Empty;
             var languages = "c++|c#";
             var options = new OptionSet
