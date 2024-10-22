@@ -72,13 +72,8 @@ namespace FlatBufferExample
             var context = Parser.Parse(path, "*.fbs");
             foreach (var lang in languages.Split('|').Select(x => x.Trim().ToLower()).Distinct().ToHashSet())
             {
-                var dir = Path.Join(output, lang);
-                if (Directory.Exists(dir))
-                    Directory.Delete(dir, true);
-                Directory.CreateDirectory(dir);
-
-                var rawFilePath = Path.Join(output, "raw");
-                var rawFlatBufferFiles = GenerateRawFlatBufferFiles(context, rawFilePath, lang).ToList();
+                var rawFilePath = "raw";
+                var rawFlatBufferFiles = GenerateRawFlatBufferFiles(context, rawFilePath, lang).Select(f => Path.Join(Directory.GetCurrentDirectory(), f)).ToList();
                 var env = lang switch
                 {
                     "c++" => "cpp",
@@ -92,7 +87,7 @@ namespace FlatBufferExample
                 p.StartInfo.RedirectStandardError = true;
                 p.StartInfo.FileName = "cmd.exe";
                 p.StartInfo.WorkingDirectory = "flatbuffer";
-                p.StartInfo.Arguments = $"/c flatc.exe --{env} -I {rawFilePath} -o {Path.Join(output, lang)} {string.Join(" ", rawFlatBufferFiles)}";
+                p.StartInfo.Arguments = $"/c flatc.exe --{env} -I {Path.Join(Directory.GetCurrentDirectory(), rawFilePath)} -o {lang} {string.Join(" ", rawFlatBufferFiles)}";
                 p.Start();
 
                 while (p.StandardOutput.Peek() > -1)
@@ -126,6 +121,11 @@ namespace FlatBufferExample
                     "c#" => ".cs",
                     _ => throw new ArgumentException()
                 };
+
+                var dir = Path.Join(output, lang);
+                if (Directory.Exists(dir))
+                    Directory.Delete(dir, true);
+                Directory.CreateDirectory(dir);
 
                 var obj = new ScribanEx();
                 obj.Add("context", context);
