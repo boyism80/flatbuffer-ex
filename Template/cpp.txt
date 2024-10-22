@@ -146,7 +146,9 @@ end
 
 func cpp_default_value(field)
     $result = ''
-    if field.is_nullable
+    if field.init
+        $result = field.init
+    else if field.is_nullable
         $result = 'std::nullopt'
     else
         case field.type
@@ -154,6 +156,12 @@ func cpp_default_value(field)
             $result = "\"\""
         when "byte", "ubyte", "short", "ushort", "int", "uint"
             $result = "0"
+        when "long", "ulong"
+            $result = "0L"
+        when "float"
+            $result = "0.0f"
+        when "double"
+            $result = "0.0"
         when "bool"
             $result = "false"
         when "array"

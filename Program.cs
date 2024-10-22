@@ -49,7 +49,7 @@ namespace FlatBufferExample
         static async Task Main(string[] args)
         {
             var path = @"D:\Users\CSHYEON\Data\git\game\c++\fb\protocol";
-            var output = "output";
+            var output = "D:\\Users\\CSHYEON\\Desktop\\NullableCS";
             var includePath = string.Empty;
             var languages = "c++|c#";
             var options = new OptionSet
@@ -71,8 +71,13 @@ namespace FlatBufferExample
             var context = Parser.Parse(path, "*.fbs");
             foreach (var lang in languages.Split('|').Select(x => x.Trim().ToLower()).Distinct().ToHashSet())
             {
-                var rawFilePath = "raw";
-                var rawFlatBufferFiles = GenerateRawFlatBufferFiles(context, rawFilePath, lang).Select(f => Path.Join(Directory.GetCurrentDirectory(), f)).ToList();
+                var dir = Path.Join(output, lang);
+                if (Directory.Exists(dir))
+                    Directory.Delete(dir, true);
+                Directory.CreateDirectory(dir);
+
+                var rawFilePath = Path.Join(output, "raw");
+                var rawFlatBufferFiles = GenerateRawFlatBufferFiles(context, rawFilePath, lang).ToList();
                 var env = lang switch
                 {
                     "c++" => "cpp",
@@ -86,7 +91,7 @@ namespace FlatBufferExample
                 p.StartInfo.RedirectStandardError = true;
                 p.StartInfo.FileName = "cmd.exe";
                 p.StartInfo.WorkingDirectory = "flatbuffer";
-                p.StartInfo.Arguments = $"/c flatc.exe --{env} -I {Path.Join(Directory.GetCurrentDirectory(), rawFilePath)} -o {lang} {string.Join(" ", rawFlatBufferFiles)}";
+                p.StartInfo.Arguments = $"/c flatc.exe --{env} -I {rawFilePath} -o {Path.Join(output, lang)} {string.Join(" ", rawFlatBufferFiles)}";
                 p.Start();
 
                 while (p.StandardOutput.Peek() > -1)
@@ -120,11 +125,6 @@ namespace FlatBufferExample
                     "c#" => ".cs",
                     _ => throw new ArgumentException()
                 };
-
-                var dir = Path.Join(output, lang);
-                if (Directory.Exists(dir))
-                    Directory.Delete(dir, true);
-                Directory.CreateDirectory(dir);
 
                 var obj = new ScribanEx();
                 obj.Add("context", context);

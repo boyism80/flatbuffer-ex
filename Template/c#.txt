@@ -121,6 +121,38 @@ func cs_create_field(raw_name, field)
 
     ret $result
 end
+
+func cs_default_value(field)
+    $result = ''
+    if field.init
+        $result = field.init
+    else if field.is_nullable
+        $result = 'null'
+    else
+        case field.type
+        when "string"
+            $result = "string.Empty"
+        when "byte", "ubyte", "short", "ushort", "int", "uint"
+            $result = "0"
+        when "long", "ulong"
+            $result = "0L"
+        when "float"
+            $result = "0.0f"
+        when "double"
+            $result = "0.0"
+        when "bool"
+            $result = "false"
+        when "array"
+            $result = "new " + cs_type(field) + '()'
+        end
+    end
+
+    if $result != ''
+        $result = ' = ' + $result + ';'
+    end
+
+    ret $result
+end
 ~}}
 using Google.FlatBuffers;
 using nullable;
@@ -163,7 +195,7 @@ namespace {{ scope.namespace | array.each @cs_mapped_kwd | array.join '.' }}
     {
         public int ProtocolType => (int)FlatBufferProtocolType.{{ table.name }};
 {{~ for field in table.fields ~}}
-        public {{ field | @cs_type }} {{ field.name | upper_camel }} { get; set; }
+        public {{ field | @cs_type }} {{ field.name | upper_camel }} { get; set; }{{ field | @cs_default_value }}
 {{~ end ~}}
 
         public {{ table.name }}()
