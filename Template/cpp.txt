@@ -181,7 +181,6 @@ namespace {{ scope.namespace | array.join '::' }}
 {{~ for table in scope.tables ~}}
     class {{ table.name }};
 {{~ end ~}}
-
 {{~ for enum in scope.enums ~}}
     enum class {{ enum.name }} : {{ { type: enum.type } | @cpp_type }};
 {{~ end ~}}
