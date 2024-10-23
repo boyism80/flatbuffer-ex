@@ -1,12 +1,12 @@
 {
-    "profiles": {
-        "FlatBufferEx": {
-            "commandName": "Project",
-            "commandLineArgs": "-o D:\\Users\\CSHYEON\\Desktop\\NullableCS"
-        },
-        "Submodule": {
-            "commandName": "Project",
-            "commandLineArgs": "--path=..\\..\\..\\..\\protocol --lang=\"c++|c#\" --include=\"fb/protocol/flatbuffer/raw\""
-        }
+  "profiles": {
+    "FlatBufferEx": {
+      "commandName": "Project",
+      "commandLineArgs": "-o D:\\Users\\CSHYEON\\Desktop\\NullableCS\\flatbuffer"
+    },
+    "Submodule": {
+      "commandName": "Project",
+      "commandLineArgs": "--path=..\\..\\..\\..\\protocol --lang=\"c++|c#\" --include=\"fb/protocol/flatbuffer/raw\""
     }
+  }
 }

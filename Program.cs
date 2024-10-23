@@ -61,6 +61,9 @@ namespace FlatBufferExample
             };
             options.Parse(args);
             output = Path.GetFullPath(output);
+            if (Directory.Exists(output))
+                Directory.Delete(output, true);
+            Directory.CreateDirectory(output);
 
 #if !DEBUG
             await Http.DownloadFile("https://github.com/google/flatbuffers/releases/download/v24.3.25/Windows.flatc.binary.zip", "flatbuffer.zip");
@@ -72,8 +75,8 @@ namespace FlatBufferExample
             var context = Parser.Parse(path, "*.fbs");
             foreach (var lang in languages.Split('|').Select(x => x.Trim().ToLower()).Distinct().ToHashSet())
             {
-                var rawFilePath = "raw";
-                var rawFlatBufferFiles = GenerateRawFlatBufferFiles(context, rawFilePath, lang).Select(f => Path.Join(Directory.GetCurrentDirectory(), f)).ToList();
+                var regeneratedFlatBufferFilePath = "raw";
+                var regeneratedFlatBufferFiles = GenerateRawFlatBufferFiles(context, regeneratedFlatBufferFilePath, lang).Select(f => Path.Join(Directory.GetCurrentDirectory(), f)).ToList();
                 var env = lang switch
                 {
                     "c++" => "cpp",
@@ -87,7 +90,7 @@ namespace FlatBufferExample
                 p.StartInfo.RedirectStandardError = true;
                 p.StartInfo.FileName = "cmd.exe";
                 p.StartInfo.WorkingDirectory = "flatbuffer";
-                p.StartInfo.Arguments = $"/c flatc.exe --{env} -I {Path.Join(Directory.GetCurrentDirectory(), rawFilePath)} -o {lang} {string.Join(" ", rawFlatBufferFiles)}";
+                p.StartInfo.Arguments = $"/c flatc.exe --{env} -I {Path.Join(Directory.GetCurrentDirectory(), regeneratedFlatBufferFilePath)} -o {Path.Join(output, "raw", lang)} {string.Join(" ", regeneratedFlatBufferFiles)}";
                 p.Start();
 
                 while (p.StandardOutput.Peek() > -1)
@@ -103,7 +106,7 @@ namespace FlatBufferExample
                 }
 
 #if !DEBUG
-                Directory.Delete(rawFilePath, true);
+                Directory.Delete(regeneratedFlatBufferFilePath, true);
 #endif
                 if (p.ExitCode != 0)
                     Environment.Exit(p.ExitCode);
