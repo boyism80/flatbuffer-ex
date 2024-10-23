@@ -94,6 +94,8 @@ func cs_default_value(field)
         $result = field.init
     else if field.is_nullable
         $result = 'null'
+    else if field.is_custom_class
+        $result = 'new ' + cs_type(field) + '()'
     else
         case field.type
         when "string"
@@ -209,8 +211,7 @@ namespace {{ scope.namespace | array.each @cs_mapped_kwd | array.join '.' }}
 {{~ end ~}}
             return builder.EndVector();
 {{~ else ~}}
-            builder.CreateVectorOfTables<{{ field.array_element.fixed_namespace | array.add 'raw' | array.add field.array_element.type | array.each @cs_mapped_kwd | array.join '.' }}>(value.Select(x => Build(builder, x)).ToArray());
-            return default;
+            return builder.CreateVectorOfTables<{{ field.array_element.fixed_namespace | array.add 'raw' | array.add field.array_element.type | array.each @cs_mapped_kwd | array.join '.' }}>(value.Select(x => Build(builder, x)).ToArray());
 {{~ end ~}}
         }
 {{~ end ~}}
