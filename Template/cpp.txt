@@ -138,7 +138,7 @@ func cpp_default_value(field)
     else
         case field.type
         when "string"
-            $result = "\"\""
+            $result = ''
         when "byte", "ubyte", "short", "ushort", "int", "uint"
             $result = "0"
         when "long", "ulong"
@@ -150,7 +150,7 @@ func cpp_default_value(field)
         when "bool"
             $result = "false"
         when "array"
-            $result = "{}"
+            $result = '{}'
         end
     end
 
@@ -184,19 +184,19 @@ namespace {{ scope.namespace | array.join '::' }}
 {{~ for enum in scope.enums ~}}
     enum class {{ enum.name }} : {{ { type: enum.type } | @cpp_type }};
 {{~ end ~}}
-}
+} // end of namespace {{ scope.namespace | array.join '::' }}
 {{~ end ~}}
 
 
 namespace flatbuffers {
 template<typename>   constexpr bool is_optional_impl = false;
 template<typename T> constexpr bool is_optional_impl<std::optional<T>> = true;
-template<> constexpr bool is_optional_impl<std::nullopt_t> = true;
-template<typename T>  constexpr bool is_optional = is_optional_impl<std::decay_t<T>>;
+template<>           constexpr bool is_optional_impl<std::nullopt_t> = true;
+template<typename T> constexpr bool is_optional = is_optional_impl<std::decay_t<T>>;
 
 template<typename>   constexpr bool is_vector_impl = false;
 template<typename T> constexpr bool is_vector_impl<std::vector<T>> = true;
-template<typename T>  constexpr bool is_vector = is_vector_impl<std::decay_t<T>>;
+template<typename T> constexpr bool is_vector = is_vector_impl<std::decay_t<T>>;
 
 
 template <typename T> struct FlatBufferOffset { typedef T type; };
@@ -231,46 +231,14 @@ flatbuffers::Offset<{{ scope.namespace | array.add 'raw' | array.add table.name 
 {{~ end ~}}
 
 template <typename T> inline static
-std::vector<T> unpack(const flatbuffers::Vector<typename FlatBufferOffset<T>::type> *value)
-{
-    auto result = std::vector<T>();
-    for (int i = 0; i < value->size(); i++)
-    {
-        if constexpr (is_optional<T>)
-        {
-            if (value->Get(i) == nullptr)
-            {
-                result.push_back(std::nullopt);
-            }
-            else if constexpr (std::is_fundamental_v<typename T::value_type>)
-            {
-                result.push_back(value->Get(i)->value());
-            }
-            else
-            {
-                result.push_back(*value->Get(i));
-            }
-        }
-        else
-        {
-            if constexpr (std::is_fundamental_v<T>)
-            {
-                result.push_back(value->Get(i));
-            }
-            else
-            {
-                result.push_back(*value->Get(i));
-            }
-        }
-    }
-    return result;
-}
+std::vector<T> unpack(const flatbuffers::Vector<typename FlatBufferOffset<T>::type> *value);
 
-}
+} // end of namespace flatbuffers
 
 {{~ for scope in context.scopes ~}}
 {{~ if (scope.enums | array.size) > 0 ~}}
-{{ for n in scope.namespace }}namespace {{ n }} { {{ end }}
+namespace {{ scope.namespace | array.join '::' }} {
+
 {{~ end ~}}
 {{~ for enum in scope.enums ~}}
 enum class {{ enum.name }} : {{ to_field(enum.type) | @cpp_type }}
@@ -281,12 +249,13 @@ enum class {{ enum.name }} : {{ to_field(enum.type) | @cpp_type }}
 };
 {{~ end ~}}
 {{~ if (scope.enums | array.size) > 0 ~}}
-{{ for n in scope.namespace }}} {{ end }}
+
+} // end of namespace {{ scope.namespace | array.join '::' }}
 {{~ end ~}}
 {{~ end ~}}
 
 {{~ for scope in context.scopes ~}}
-{{ for n in scope.namespace }}namespace {{ n }} { {{ end }}
+namespace {{ scope.namespace | array.join '::' }} {
 
 enum class FlatBufferProtocolType
 {
@@ -334,10 +303,9 @@ public:
     {
         auto builder = flatbuffers::FlatBufferBuilder();
         builder.Finish(build<{{ table.scope.namespace | array.add table.name | array.join '::' }}>(builder, *this));
-        auto size = builder.GetSize();
-        auto result = std::vector<uint8_t>(size);
-        std::memcpy(result.data(), builder.GetBufferPointer(), size);
-        return result;
+        auto buffer = std::vector<uint8_t>(builder.GetSize());
+        std::memcpy(buffer.data(), builder.GetBufferPointer(), builder.GetSize());
+        return buffer;
     }
 
     static {{ table.name }} Deserialize(const uint8_t* bytes)
@@ -347,7 +315,9 @@ public:
     }
 };
 {{~ end ~}}
-{{ for n in scope.namespace }}} {{ end }}
+
+} // end of namespace {{ scope.namespace | array.join '::' }}
+
 {{~ end ~}}
 
 namespace flatbuffers {
@@ -415,6 +385,42 @@ flatbuffers::Offset<{{ scope.namespace | array.add 'raw' | array.add table.name 
 }
 {{~ end ~}}
 {{~ end ~}}
+
+template <typename T> inline static
+std::vector<T> unpack(const flatbuffers::Vector<typename FlatBufferOffset<T>::type> *value)
+{
+    auto result = std::vector<T>();
+    for (int i = 0; i < value->size(); i++)
+    {
+        if constexpr (is_optional<T>)
+        {
+            if (value->Get(i) == nullptr)
+            {
+                result.push_back(std::nullopt);
+            }
+            else if constexpr (std::is_fundamental_v<typename T::value_type>)
+            {
+                result.push_back(value->Get(i)->value());
+            }
+            else
+            {
+                result.push_back(*value->Get(i));
+            }
+        }
+        else
+        {
+            if constexpr (std::is_fundamental_v<T>)
+            {
+                result.push_back(value->Get(i));
+            }
+            else
+            {
+                result.push_back(*value->Get(i));
+            }
+        }
+    }
+    return result;
+}
 
 }
 
