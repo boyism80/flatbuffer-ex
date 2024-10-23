@@ -1,11 +1,16 @@
-# flatwrapper
+# FlatbufferEx
 
 ## Introduce
 FlatbufferEx helps to use flatbuffer simply. <br>
-support nullable type, declare multiple tables in one file, not use flatbuffer builder. <br>
+support nullable type, declare multiple tables in one file, no more required flatbuffer builder to create DTO. <br>
 this repository is used in my 2d mmorpg game server project. if you want to see, visit my [fb](https://github.com/boyism80/fb/tree/develop/protocol) project.<br>
 <br>
 only support c++ and c# <br>
+
+## How to work?
+FlatbufferEx re-generates fbs files and create new (header)file for access flatbuffer object simply.<br>
+you can see the wrapping [file](https://github.com/boyism80/fb/blob/develop/include/fb/protocol/flatbuffer/protocol.h).
+
 
 ## Declare flatbuffer files
 ```
@@ -13,10 +18,13 @@ only support c++ and c# <br>
 
 namespace fb.protocol.db;
 
+// you can declare multiple tables but root_type can be only one.
+// but here, all your tables are root_type.
+// don't set each tables as root_type. its automatically set as root_type.
 table Character {
     ...
 	name: string;
-	weapon_color: ubyte?;
+	weapon_color: ubyte?; // you can make field as nullable type
 	armor_color: ubyte?;
     ...
 }
@@ -95,6 +103,8 @@ int main(int argc, const char** argv)
 
 ## Use in C#
 ```c#
+// Program.cs
+
 using fb.protocol.db;
 using System.Diagnostics;
 
