@@ -161,6 +161,8 @@ func cpp_default_value(field)
     ret $result
 end
 ~}}
+// clang-format off
+
 #ifndef __FLATBUFFER_PROTOCOL_H__
 #define __FLATBUFFER_PROTOCOL_H__
 
