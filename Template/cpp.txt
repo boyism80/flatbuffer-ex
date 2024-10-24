@@ -218,16 +218,16 @@ template <> struct FlatBufferOffset<{{ table.scope.namespace | array.add table.n
 template <> struct FlatBufferOffset<{{ enum.scope.namespace | array.add enum.name | array.join '::' }}> { typedef {{ enum.scope.namespace | array.add 'raw' | array.add enum.name | array.join '::' }} type; };
 {{~ end ~}}
 {{~ end ~}}
-template <typename T> struct FlatBufferOffset<std::optional<T>> { typedef FlatBufferOffset<typename T>::type type; };
+template <typename T> struct FlatBufferOffset<std::optional<T>> { typedef typename FlatBufferOffset<T>::type type; };
 template <typename T> struct FlatBufferOffset<std::vector<T>> { typedef flatbuffers::Offset<flatbuffers::Vector<typename FlatBufferOffset<T>::type>> type; };
 
 template <typename T> inline static
 typename FlatBufferOffset<T>::type build(FlatBufferBuilder& builder, const T& value);
-template <> inline static
+template <>
 flatbuffers::Offset<flatbuffers::String> build<std::string>(FlatBufferBuilder& builder, const std::string& value);
 {{~ for scope in context.scopes ~}}
 {{~ for table in scope.tables ~}}
-template <> inline static
+template <>
 flatbuffers::Offset<{{ scope.namespace | array.add 'raw' | array.add table.name | array.join '::' }}> build<{{ scope.namespace | array.add table.name | array.join '::' }}>(FlatBufferBuilder& builder, const {{ scope.namespace | array.add table.name | array.join '::' }}& value);
 {{~ end ~}}
 {{~ end ~}}
