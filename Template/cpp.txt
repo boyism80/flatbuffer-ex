@@ -96,6 +96,7 @@ func cpp_create_field(raw_name, field)
 
     if field.type == 'string'
         $cpp_value = $cpp_value + '->c_str()'
+        $cpp_value = 'flatbuffers::option::decode(' + $cpp_value + ')'
     else if field.is_enum
         $cpp_value = '(' + (field.fixed_namespace | array.add field.type | array.join '::') + ')' + $cpp_value
     else if field.is_custom_class
@@ -191,6 +192,78 @@ namespace {{ scope.namespace | array.join '::' }}
 
 
 namespace flatbuffers {
+
+class option
+{
+public:
+    using encoding_func_type = std::function<std::string(const std::string&)>;
+
+private:
+    encoding_func_type encoding_func;
+    encoding_func_type decoding_func;
+
+private:
+    option() = default;
+
+public:
+    ~option() = default;
+
+private:
+    static option& get()
+    {
+        static std::once_flag flag;
+        static std::unique_ptr<option> ist;
+
+        std::call_once(flag, [] 
+        {
+            ist = std::unique_ptr<option>(new option());
+        });
+        return *ist;
+    }
+
+public:
+    static void encoding(const encoding_func_type& fn)
+    {
+        auto& ist = get();
+        ist.encoding_func = fn;
+    }
+
+public:
+    static void decoding(const encoding_func_type& fn)
+    {
+        auto& ist = get();
+        ist.decoding_func = fn;
+    }
+
+public:
+    static std::string encode(const std::string& value)
+    {
+        auto& ist = get();
+        if (ist.encoding_func)
+        {
+            return ist.encoding_func(value);
+        }
+        else
+        {
+            return value;
+        }
+    }
+
+public:
+    static std::string decode(const std::string& value)
+    {
+        auto& ist = get();
+        if (ist.decoding_func)
+        {
+            return ist.decoding_func(value);
+        }
+        else
+        {
+            return value;
+        }
+    }
+};
+
 template<typename>   constexpr bool is_optional_impl = false;
 template<typename T> constexpr bool is_optional_impl<std::optional<T>> = true;
 template<>           constexpr bool is_optional_impl<std::nullopt_t> = true;
@@ -372,7 +445,7 @@ typename FlatBufferOffset<T>::type build(FlatBufferBuilder& builder, const T& va
 template <> 
 flatbuffers::Offset<flatbuffers::String> build<std::string>(FlatBufferBuilder& builder, const std::string& value)
 {
-    return builder.CreateString(value);
+    return builder.CreateString(flatbuffers::option::encode(value));
 }
 
 {{~ for scope in context.scopes ~}}
