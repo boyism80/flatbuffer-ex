@@ -206,6 +206,8 @@ namespace {{ scope.namespace | array.each @cs_mapped_kwd | array.join '.' }}
             builder.StartVector(1, value.Count, {{ field.array_element | @cs_field_size}});
 {{~ if field.array_element.is_nullable ~}}
             builder.Add(value.Select(x => builder.Build(x)).ToArray());
+{{~ else if field.array_element.type == 'string' ~}}
+            builder.Add(value.Select(x => builder.Build(x)).ToArray());
 {{~ else ~}}
             builder.Add(value.ToArray());
 {{~ end ~}}
