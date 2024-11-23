@@ -202,12 +202,18 @@ namespace {{ scope.namespace | array.each @cs_mapped_kwd | array.join '.' }}
 {{~ for field in context.array_fields ~}}
         public static VectorOffset Build(this FlatBufferBuilder builder, List<{{ field.array_element | @cs_type }}> value)
         {
+{{~ if field.array_element.type == 'string' ~}}
+            var offsets = value.ConvertAll(x => builder.Build(x).Value);
+{{~ end ~}}
 {{~ if field.array_element.is_primitive ~}}
-            builder.StartVector(1, value.Count, {{ field.array_element | @cs_field_size}});
+            builder.StartVector({{ field.array_element | @cs_field_size}}, value.Count, {{ field.array_element | @cs_field_size}});
 {{~ if field.array_element.is_nullable ~}}
             builder.Add(value.Select(x => builder.Build(x)).ToArray());
 {{~ else if field.array_element.type == 'string' ~}}
-            builder.Add(value.Select(x => builder.Build(x)).ToArray());
+            foreach (var offset in offsets)
+            {
+                builder.AddOffset(offset);
+            }
 {{~ else ~}}
             builder.Add(value.ToArray());
 {{~ end ~}}

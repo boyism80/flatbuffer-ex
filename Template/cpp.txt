@@ -490,7 +490,7 @@ std::vector<T> unpack(const flatbuffers::Vector<typename FlatBufferOffset<T>::ty
             }
             else if constexpr (std::is_same_v<T, std::string>)
             {
-                result.push_back(value->Get(i)->c_str());
+                result.push_back(flatbuffers::option::decode(value->Get(i)->c_str()));
             }
             else
             {
