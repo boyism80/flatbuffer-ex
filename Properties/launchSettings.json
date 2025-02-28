@@ -2,7 +2,7 @@
   "profiles": {
     "FlatBufferEx": {
       "commandName": "Project",
-      "commandLineArgs": "-o D:\\Users\\CSHYEON\\Desktop\\NullableCS\\flatbuffer"
+      "commandLineArgs": "-p D:\\git\\fb\\protocol"
     },
     "Submodule": {
       "commandName": "Project",
