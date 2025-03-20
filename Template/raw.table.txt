@@ -17,7 +17,11 @@ func generate_type(field)
         else if field.type == 'string'
 
         else
-            $result = 'nullable.' + (['nullable'] | array.concat field.fixed_namespace | array.add field.type | array.each @mapped_kwd | array.join '_' | string.downcase)
+            if lang == 'go'
+                $result = 'nullable.' + (['Nullable'] | array.concat field.fixed_namespace | array.add field.type | array.each @mapped_kwd | array.join '_')
+            else
+                $result = 'nullable.' + (['nullable'] | array.concat field.fixed_namespace | array.add field.type | array.each @mapped_kwd | array.join '_' | string.downcase)
+            end
         end
     end
     ret $result

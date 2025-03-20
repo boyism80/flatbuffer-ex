@@ -39,9 +39,9 @@ namespace FlatBufferExample
 
             foreach (var nullableField in context.NullableFields)
             {
-                var fname = $"nullable_{string.Join('_', nullableField.FixedNamespace.Concat(new[] { nullableField.Type }))}.fbs".ToLower();
+                var fname = $"nullable_{string.Join('_', nullableField.FixedNamespace.Concat([nullableField.Type]))}.fbs".ToLower();
                 var path = Path.Combine(output, fname);
-                File.WriteAllText(path, Template.Parse(File.ReadAllText("Template/nullable.txt")).Render(new { Field = nullableField }));
+                File.WriteAllText(path, Template.Parse(File.ReadAllText("Template/nullable.txt")).Render(new { Field = nullableField, lang = lang }));
                 yield return path;
             }
         }
@@ -52,12 +52,14 @@ namespace FlatBufferExample
             var output = "output";
             var includePath = string.Empty;
             var languages = "c++|c#";
+            var gmn = string.Empty;
             var options = new OptionSet
             {
                 { "p|path=", "input directory", v => path = v },
                 { "l|lang=", "code language", v => languages = v },
                 { "o|output=", "output directory", v => output = v },
                 { "i|include=", "include directory path", v => includePath = v },
+                { "gmn|go-module-name=", "go module name", v => gmn = v },
             };
             options.Parse(args);
             output = Path.GetFullPath(output);
@@ -81,6 +83,7 @@ namespace FlatBufferExample
                 {
                     "c++" => "cpp",
                     "c#" => "csharp",
+                    "go" => "go",
                     _ => throw new ArgumentException()
                 };
 
@@ -91,6 +94,10 @@ namespace FlatBufferExample
                 p.StartInfo.FileName = "cmd.exe";
                 p.StartInfo.WorkingDirectory = "flatbuffer";
                 p.StartInfo.Arguments = $"/c flatc.exe --{env} -I {Path.Join(Directory.GetCurrentDirectory(), regeneratedFlatBufferFilePath)} -o {Path.Join(output, "raw", lang)} {string.Join(" ", regeneratedFlatBufferFiles)}";
+
+                if (lang == "go" && string.IsNullOrEmpty(gmn) == false)
+                    p.StartInfo.Arguments += $" --go-module-name {gmn}";
+
                 p.Start();
 
                 while (p.StandardOutput.Peek() > -1)
@@ -115,6 +122,7 @@ namespace FlatBufferExample
                 {
                     "c++" => Template.Parse(File.ReadAllText("Template/cpp.txt")),
                     "c#" => Template.Parse(File.ReadAllText("Template/c#.txt")),
+                    "go" => Template.Parse(File.ReadAllText("Template/go.txt")),
                     _ => throw new ArgumentException()
                 };
 
@@ -122,6 +130,7 @@ namespace FlatBufferExample
                 {
                     "c++" => ".h",
                     "c#" => ".cs",
+                    "go" => ".go",
                     _ => throw new ArgumentException()
                 };
 

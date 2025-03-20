@@ -1,0 +1,284 @@
+{{~
+func go_type_from_str(type)
+    $result = ''
+    case type
+        when "string"
+            $result = "string"
+        when "byte"
+            $result = "int8"
+        when "ubyte"
+            $result = "byte"
+        when "short"
+            $result = "int16"
+        when "ushort"
+            $result = "uint16"
+        when "int"
+            $result = "int32"
+        when "uint"
+            $result = "uint32"
+        when "array"
+            $result = "[]" + (field.array_element | @go_type)
+        else
+            $result = type
+    end
+
+    ret $result
+end
+
+func go_type(field)
+    $result = @go_type_from_str(field.type)
+    if field.refer_namespace
+        $result = (field.refer_namespace | array.add $result | array.each @cs_mapped_kwd | array.join '.')
+    else if field.is_custom_class
+        $result = (field.scope.namespace | array.add $result | array.each @cs_mapped_kwd | array.join '.')
+    end
+
+    if field.is_nullable
+        $result = '*' + $result
+    end
+
+    ret $result
+end
+
+func cs_access_nullable_value(value, field)
+    if field.is_custom_class
+        ret value + '.Value'
+    else if field.type == 'string'
+        ret value
+    else if field.is_nullable
+        ret value + '.Value'
+    else if field.is_enum
+        ret '(' + (field.fixed_namespace | array.add field.type | array.each @cs_mapped_kwd | array.join '.') + ')' + value
+    else if field.is_primitive
+        ret value
+    else
+        ret value + '()'
+    end
+end
+
+func cs_create_field(raw_name, field)
+    $result = ''
+    $flatbuffer_offset = raw_name
+    if field.name
+        $flatbuffer_offset = $flatbuffer_offset + '.' + (field.name | upper_camel)
+    end
+    $flatbuffer_value = cs_access_nullable_value($flatbuffer_offset, field)
+
+    if field.is_bound_nullable
+        $casting_type = '(' + (field.fixed_namespace | array.add (field | @go_type) | array.each @cs_mapped_kwd | array.join '.') + ')'
+        $flatbuffer_value = $casting_type + $flatbuffer_value + '.Value'
+    end
+
+    if field.is_custom_class
+        $value = 'new ' + field.type + '(' + $flatbuffer_value + ')'
+    else if field.type == 'string'
+        $value = $flatbuffer_value
+    else if field.type == 'array'
+        $value = 'Enumerable.Range(0, raw.' + (field.name | upper_camel) + 'Length).Select(i => raw.' + (field.name | upper_camel) + '(i)).Select(x => ' + cs_create_field('x', field.array_element) + ').ToList()'
+    else if field.is_enum
+        $value = $flatbuffer_value
+    else
+        $value = $flatbuffer_value
+    end
+
+    if field.is_nullable && field.type != 'string'
+        $result = $flatbuffer_offset + ' != null ? ' + $value + ' : null'
+    else
+        $result = $value
+    end
+
+    ret $result
+end
+
+func cs_default_value(field)
+    $result = ''
+    if field.init
+        $result = field.init
+    else if field.is_nullable
+        $result = 'null'
+    else if field.is_custom_class
+        $result = 'new ' + go_type(field) + '()'
+    else
+        case field.type
+        when "string"
+            $result = "string.Empty"
+        when "byte", "ubyte", "short", "ushort", "int", "uint"
+            $result = "0"
+        when "long", "ulong"
+            $result = "0L"
+        when "float"
+            $result = "0.0f"
+        when "double"
+            $result = "0.0"
+        when "bool"
+            $result = "false"
+        when "array"
+            $result = "new " + go_type(field) + '()'
+        end
+    end
+
+    if $result != ''
+        $result = ' = ' + $result + ';'
+    end
+
+    ret $result
+end
+
+func cs_field_size(field)
+    if field.is_nullable
+        ret 4
+    end
+
+    case field.type
+    when 'byte', 'ubyte', 'bool'
+        ret 1
+    when 'short', 'ushort'
+        ret 2
+    when 'int', 'uint', 'float'
+        ret 4
+    when 'long', 'ulong', 'double'
+        ret 8
+    end
+
+    ret 4
+end
+
+func build_param_type(field)
+    if field.is_nullable
+        ret 'flatbuffers.UOffsetT'
+    end
+
+    if field.is_primitive == false
+        ret 'flatbuffers.UOffsetT'
+    end
+
+    if field.type == 'string'
+        ret 'flatbuffers.UOffsetT'
+    end
+
+    ret field | @go_type
+end
+
+func build_value(value, field)
+
+    if field.type == 'string'
+        if field.is_nullable
+            ret 'BuildString(builder, ' + value + '.' + (field.name | @upper_camel) + ')'
+        else
+            ret 'BuildString(builder, &' + value + '.' + (field.name | @upper_camel) + ')'
+        end
+    end
+
+    if field.is_nullable
+        ret 'Build' + (field.type | @upper_camel) + 'Ptr(builder, ' + value + '.' + (field.name | @upper_camel) + ')'
+    end
+
+    ret value + '.' + (field.name | @upper_camel)
+end
+
+func deserialize_value(value, field)
+    if field.type == 'string'
+        x = 'DeserializeString(' + value + '.' + (field.name | @upper_camel) + '()' + ')'
+        if field.is_nullable == false
+            x = '*' + x
+        end
+        ret x
+    end
+
+    if field.is_nullable
+        ret 'Deserialize' + (field.type | @upper_camel) + 'Ptr(' + value + '.' + (field.name | @upper_camel) + '(nil))'
+    end
+
+    ret value + '.' + (field.name | @upper_camel) + '()'
+end
+
+~}}
+
+package protocol
+
+type IFlatBufferEx interface {
+    ProtocolType() int
+    Serialize() []byte
+}
+
+func BuildString(builder *flatbuffers.Builder, value *string) flatbuffers.UOffsetT {
+    if value == nil {
+        return 0
+    }
+
+    return builder.CreateString(*value)
+}
+
+func DeserializeString(value []byte) *string {
+    if value == nil {
+        return nil
+    }
+
+    result := string(value)
+    return &result
+}
+
+{{~ for nullable_field in context.nullable_fields ~}}
+{{~ if nullable_field.is_primitive ~}}
+func Build{{ nullable_field.type | @upper_camel }}Ptr(builder *flatbuffers.Builder, value {{ nullable_field | @go_type }}) flatbuffers.UOffsetT {
+    if value == nil {
+        return 0
+    }
+
+    nullable.Nullable_{{ nullable_field.type }}Start(builder)
+    nullable.Nullable_{{ nullable_field.type }}AddValue(builder, *value)
+    return nullable.Nullable_{{ nullable_field.type }}End(builder)
+}
+
+func Deserialize{{ nullable_field.type | @upper_camel }}Ptr(value *nullable.Nullable_{{ nullable_field.type }}) {{ nullable_field | @go_type }} {
+    if value == nil {
+        return nil
+    }
+
+    result := value.Value()
+    return &result
+}
+{{~ end ~}}
+{{~ end ~}}
+
+{{~ for scope in context.scopes ~}}
+// package {{ scope.namespace | array.each @cs_mapped_kwd | array.join '.' }}
+
+{{~ for table in scope.tables ~}}
+type {{ table.name }} struct {
+{{~ for field in table.fields ~}}
+    {{ field.name | upper_camel }} {{ field | @go_type }}
+{{~ end ~}}
+}
+
+func Deserialize{{ table.name }}(bytes []byte) {{ table.name }} {
+    value := raw.GetRootAs{{ table.name }}(bytes, 0)
+    return {{ table.name }}{ {{ if table.fields | array.size > 0}}{{~ for field in table.fields ~}}{{ deserialize_value('value', field) }}{{~ if !for.last ~}},
+{{~ end ~}}{{~ end ~}}{{~ end ~}}}
+}
+
+func build{{ table.name }}(builder *flatbuffers.Builder,
+{{~ for field in table.fields ~}}
+    _{{ for.index }} {{ field | @build_param_type }}{{ if !for.last }},
+{{~ end ~}}{{~ end ~}}) flatbuffers.UOffsetT {
+    raw.{{ table.name }}Start(builder)
+{{~ for field in table.fields ~}}
+    raw.{{ table.name }}Add{{ field.name | @upper_camel }}(builder, _{{ for.index }})
+{{~ end ~}}
+    return raw.{{ table.name }}End(builder)
+}
+
+func (value *{{ table.name }}) Build(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
+    if value == nil {
+        return 0
+    }
+
+    return build{{ table.name }}(builder,
+{{~ for field in table.fields ~}}
+        {{ build_value('value', field) }}{{~ if !for.last ~}},
+{{ end ~}}
+{{~ end ~}})
+}
+
+{{~ end ~}}
+{{~ end ~}}

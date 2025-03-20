@@ -3,6 +3,10 @@ include '{{ field.fixed_namespace | array.add field.type | array.join '.' | stri
 {{~ end ~}}
 namespace nullable;
 
+{{~ if lang == 'go' ~}}
+table Nullable_{{ field.fixed_namespace | array.add field.type | array.join '_' | string.downcase }} {
+{{~ else ~}}
 table nullable_{{ field.fixed_namespace | array.add field.type | array.join '_' | string.downcase }} {
+{{~ end ~}}
   value: {{ field.fixed_raw_namespace | array.add field.type | array.join '.' }};
 }
