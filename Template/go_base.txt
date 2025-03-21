@@ -1,0 +1,184 @@
+{{~
+func go_type_from_str(type)
+    $result = ''
+    case type
+        when "string"
+            $result = "string"
+        when "byte"
+            $result = "int8"
+        when "ubyte"
+            $result = "byte"
+        when "short"
+            $result = "int16"
+        when "ushort"
+            $result = "uint16"
+        when "int"
+            $result = "int32"
+        when "uint"
+            $result = "uint32"
+        when "array"
+            $result = "[]" + (field.array_element | @go_type)
+        else
+            $result = type
+    end
+
+    ret $result
+end
+
+func go_type(field)
+    $result = @go_type_from_str(field.type)
+    if field.refer_namespace
+        $ns = field.refer_namespace
+    else if field.is_custom_class
+        $ns = field.scope.namespace
+    else
+        $ns = ['']
+    end
+
+    $ns = ($ns | array.last)
+    if $ns != '' && $ns != (scope.namespace | array.last)
+        $result = $ns + '.' + $result
+    end
+
+    $result = ([$result] | array.each @cs_mapped_kwd | array.join '.')
+
+    if field.is_nullable
+        $result = '*' + $result
+    end
+
+    ret $result
+end
+~}}
+package fbex
+
+import (
+    "{{ go_module_name }}/nullable"
+    flatbuffers "github.com/google/flatbuffers/go"
+)
+
+type IFlatBufferEx interface {
+    Serialize() []byte
+    Build(*flatbuffers.Builder) flatbuffers.UOffsetT
+}
+
+func BuildString(builder *flatbuffers.Builder, value *string) flatbuffers.UOffsetT {
+    if value == nil {
+        return 0
+    }
+
+    return builder.CreateString(*value)
+}
+
+func DeserializeString(value []byte) *string {
+    if value == nil {
+        return nil
+    }
+
+    result := string(value)
+    return &result
+}
+
+func DeserializePrimitiveArray[T any](f func(int) T, n int) []T {
+    result := []T{}
+    for i := 0; i < n; i++ {
+        result = append(result, f(i))
+    }
+    return result
+}
+
+func DeserializeStringArray(f func(int) []byte, n int) []string {
+    result := []string{}
+    for i := 0; i < n; i++ {
+        result = append(result, string(f(i)))
+    }
+    return result
+}
+
+func DeserializeClassArray[T any](f func(*T, int) bool, n int) []*T {
+    result := []*T{}
+    for i := 0; i < n; i++ {
+        var x *T = nil
+        ok := f(x, i)
+        if ok {
+            result = append(result, x)
+        }
+    }
+    return result
+}
+
+func BuildClassArray[T IFlatBufferEx](builder *flatbuffers.Builder, values []T) flatbuffers.UOffsetT {
+
+    if values == nil {
+        return 0
+    }
+
+    raws := []flatbuffers.UOffsetT{}
+    for i := 0; i < len(values); i++ {
+        value := values[len(values)-i-1]
+        raws = append(raws, value.Build(builder))
+    }
+
+    builder.StartVector(4, len(values), 4)
+    for _, offset := range raws {
+        builder.PrependUOffsetT(offset)
+    }
+    builder.EndVector(len(values))
+    return 0
+}
+
+func BuildStringArray(builder *flatbuffers.Builder, values []string) flatbuffers.UOffsetT {
+    if values == nil {
+        return 0
+    }
+
+    offsets := []flatbuffers.UOffsetT{}
+    builder.StartVector(4, len(values), 4)
+    for i := 0; i < len(values); i++ {
+        value := values[len(values)-i-1]
+        offsets = append(offsets, BuildString(builder, &value))
+    }
+
+    for _, offset := range offsets {
+        builder.PrependUOffsetT(offset)
+    }
+
+    return builder.EndVector(len(values))
+}
+
+{{~ for type in ['bool', 'uint8', 'uint16', 'uint32', 'uint64', 'int8', 'int16', 'int32', 'int64', 'float32', 'float64', 'byte'] ~}}
+func Build{{ type | @upper_camel }}Array(builder *flatbuffers.Builder, values []{{ type }}) flatbuffers.UOffsetT {
+    if values == nil {
+        return 0
+    }
+
+    builder.StartVector(4, len(values), 4)
+    for i := 0; i < len(values); i++ {
+        value := values[len(values)-i-1]
+        builder.Prepend{{ type | @upper_camel }}(value)
+    }
+    return builder.EndVector(len(values))
+}
+{{~ end ~}}
+
+{{~ for nullable_field in context.nullable_fields ~}}
+{{~ if nullable_field.is_primitive ~}}
+func Build{{ nullable_field.type | @upper_camel }}Ptr(builder *flatbuffers.Builder, value {{ nullable_field | @go_type }}) flatbuffers.UOffsetT {
+    if value == nil {
+        return 0
+    }
+
+    nullable.Nullable_{{ nullable_field.type }}Start(builder)
+    nullable.Nullable_{{ nullable_field.type }}AddValue(builder, *value)
+    return nullable.Nullable_{{ nullable_field.type }}End(builder)
+}
+
+func Deserialize{{ nullable_field.type | @upper_camel }}Ptr(value *nullable.Nullable_{{ nullable_field.type }}) {{ nullable_field | @go_type }} {
+    if value == nil {
+        return nil
+    }
+
+    result := value.Value()
+    return &result
+}
+{{~ end ~}}
+{{~ end ~}}

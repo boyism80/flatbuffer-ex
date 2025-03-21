@@ -5,6 +5,7 @@ using NDesk.Options;
 using Scriban;
 using System.Diagnostics;
 using System.IO.Compression;
+using static System.Formats.Asn1.AsnWriter;
 
 namespace FlatBufferExample
 {
@@ -141,6 +142,7 @@ namespace FlatBufferExample
 
                 if (lang == "go")
                 {
+                    RenderBaseGoFile(context, gmn, dir, "fbex.go");
                     foreach (var scope in context.Scopes)
                     {
                         var obj = new ScribanEx
@@ -148,6 +150,8 @@ namespace FlatBufferExample
                             ["context"] = context,
                             ["include_path"] = includePath,
                             ["scope"] = scope,
+                            ["go_module_name"] = gmn,
+                            ["include_files"] = scope.IncludeFiles,
                         };
                         var ctx = new TemplateContext();
                         ctx.PushGlobal(obj);
@@ -177,6 +181,19 @@ namespace FlatBufferExample
                     File.WriteAllText(dest, template.Render(ctx));
                 }
             }
+        }
+
+        private static void RenderBaseGoFile(Context context, string gmn, string dir, string fname)
+        {
+            var baseTemplate = Template.Parse(File.ReadAllText("Template/go_base.txt"));
+            var obj1 = new ScribanEx
+            {
+                ["context"] = context,
+                ["go_module_name"] = gmn,
+            };
+            var ctx1 = new TemplateContext();
+            ctx1.PushGlobal(obj1);
+            File.WriteAllText(Path.Join(dir, fname), baseTemplate.Render(ctx1));
         }
 
         private static IEnumerable<string> IncludesToFiles(List<string> includes, List<FlatBufferFileInfo> parseResultList)
