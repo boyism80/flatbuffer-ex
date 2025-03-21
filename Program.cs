@@ -139,17 +139,43 @@ namespace FlatBufferExample
                     Directory.Delete(dir, true);
                 Directory.CreateDirectory(dir);
 
-                var obj = new ScribanEx();
-                obj.Add("context", context);
-                obj.Add("include_path", includePath);
-                var ctx = new TemplateContext();
-                ctx.PushGlobal(obj);
+                if (lang == "go")
+                {
+                    foreach (var scope in context.Scopes)
+                    {
+                        var obj = new ScribanEx
+                        {
+                            ["context"] = context,
+                            ["include_path"] = includePath,
+                            ["scope"] = scope,
+                        };
+                        var ctx = new TemplateContext();
+                        ctx.PushGlobal(obj);
 
-                var dest = Path.Join(dir, $"protocol{ext}");
-                if (!Directory.Exists(Path.GetDirectoryName(dest)))
-                    Directory.CreateDirectory(Path.GetDirectoryName(dest));
+                        var dest = Path.Join(dir, Path.Join(scope.Namespace.ToArray()));
+                        dest = Path.Join(dest, $"{Path.GetFileName(dest)}{ext}");
+                        if (!Directory.Exists(Path.GetDirectoryName(dest)))
+                            Directory.CreateDirectory(Path.GetDirectoryName(dest));
 
-                File.WriteAllText(dest, template.Render(ctx));
+                        File.WriteAllText(dest, template.Render(ctx));
+                    }
+                }
+                else
+                {
+                    var obj = new ScribanEx
+                    {
+                        ["context"] = context,
+                        ["include_path"] = includePath,
+                    };
+                    var ctx = new TemplateContext();
+                    ctx.PushGlobal(obj);
+
+                    var dest = Path.Join(dir, $"protocol{ext}");
+                    if (!Directory.Exists(Path.GetDirectoryName(dest)))
+                        Directory.CreateDirectory(Path.GetDirectoryName(dest));
+
+                    File.WriteAllText(dest, template.Render(ctx));
+                }
             }
         }
 

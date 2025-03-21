@@ -2,7 +2,7 @@
   "profiles": {
     "FlatBufferEx": {
       "commandName": "Project",
-      "commandLineArgs": "-p D:\\git\\fb\\protocol"
+      "commandLineArgs": "--path=D:\\git\\rts\\protocol --lang=\"go\" --go-module-name \"github.com/boyism80/rts/flatbuffer\""
     },
     "Submodule": {
       "commandName": "Project",

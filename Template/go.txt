@@ -28,10 +28,19 @@ end
 func go_type(field)
     $result = @go_type_from_str(field.type)
     if field.refer_namespace
-        $result = (field.refer_namespace | array.add $result | array.each @cs_mapped_kwd | array.join '.')
+        $ns = field.refer_namespace
     else if field.is_custom_class
-        $result = (field.scope.namespace | array.add $result | array.each @cs_mapped_kwd | array.join '.')
+        $ns = field.scope.namespace
+    else
+        $ns = ['']
     end
+
+    $ns = ($ns | array.last)
+    if $ns != '' && $ns != (scope.namespace | array.last)
+        $result = $ns + '.' + $result
+    end
+
+    $result = ([$result] | array.each @cs_mapped_kwd | array.join '.')
 
     if field.is_nullable
         $result = '*' + $result
@@ -173,6 +182,20 @@ func build_value(value, field)
         ret 'Build' + (field.type | @upper_camel) + 'Ptr(builder, ' + value + '.' + (field.name | @upper_camel) + ')'
     end
 
+    if field.is_custom_class
+        ret value + '.' + (field.name | @upper_camel) + '.Build(builder)'
+    end
+
+    if field.is_array
+        if field.array_element.is_custom_class
+            ret 'BuildClassArray(builder, ' + value + '.' + (field.name | @upper_camel) +')'
+        else if field.array_element.type == 'string'
+            ret 'BuildStringArray(builder, ' + value + '.' + (field.name | @upper_camel) +')'
+        else
+            ret 'Build' + (field.type | @go_type | @upper_camel) +'Array(builder, ' + value + '.' + (field.name | @upper_camel) +')'
+        end
+    end
+
     ret value + '.' + (field.name | @upper_camel)
 end
 
@@ -189,16 +212,38 @@ func deserialize_value(value, field)
         ret 'Deserialize' + (field.type | @upper_camel) + 'Ptr(' + value + '.' + (field.name | @upper_camel) + '(nil))'
     end
 
+    if field.is_custom_class
+        ret 'DeserializeRaw' + (field.name | @upper_camel) + '(' + value + '.' + (field.name | @upper_camel) + '(nil)' + ')'
+    end
+
+    if field.is_array
+        if field.array_element.type == 'string'
+            ret 'DeserializeStringArray(value.' + (field.name | @upper_camel) + ', value.' + (field.name | @upper_camel) + 'Length())'
+        else if field.array_element.is_primitive
+            ret 'DeserializePrimitiveArray(value.' + (field.name | @upper_camel) + ', value.' + (field.name | @upper_camel) + 'Length())'
+        else
+            x = 'DeserializeClassArray(value.' + (field.name | @upper_camel) + ', value.' + (field.name | @upper_camel) + 'Length())'
+            ret 'Deserialize' + (field.array_element.type | @upper_camel) + 'Array(' + x + ')'
+        end
+    end
+
     ret value + '.' + (field.name | @upper_camel) + '()'
+end
+
+func build_field_param(value, field)
+    if field.is_enum
+        ret 'raw.' + field.type + '(' + value + ')'
+    end
+
+    ret value
 end
 
 ~}}
 
-package protocol
+package {{ scope.namespace | array.last }}
 
 type IFlatBufferEx interface {
-    ProtocolType() int
-    Serialize() []byte
+    Build(*flatbuffers.Builder) flatbuffers.UOffsetT
 }
 
 func BuildString(builder *flatbuffers.Builder, value *string) flatbuffers.UOffsetT {
@@ -217,6 +262,88 @@ func DeserializeString(value []byte) *string {
     result := string(value)
     return &result
 }
+
+func DeserializePrimitiveArray[T any](f func(int) T, n int) []T {
+    result := []T{}
+    for i := 0; i < n; i++ {
+        result = append(result, f(i))
+    }
+    return result
+}
+
+func DeserializeStringArray(f func(int) []byte, n int) []string {
+    result := []string{}
+    for i := 0; i < n; i++ {
+        result = append(result, string(f(i)))
+    }
+    return result
+}
+
+func DeserializeClassArray[T any](f func(*T, int) bool, n int) []*T {
+    result := []*T{}
+    for i := 0; i < n; i++ {
+        var x *T = nil
+        ok := f(x, i)
+        if ok {
+            result = append(result, x)
+        }
+    }
+    return result
+}
+
+func BuildClassArray[T IFlatBufferEx](builder *flatbuffers.Builder, values []T) flatbuffers.UOffsetT {
+
+    if values == nil {
+        return 0
+    }
+
+    raws := []flatbuffers.UOffsetT{}
+    for i := 0; i < len(values); i++ {
+        value := values[len(values)-i-1]
+        raws = append(raws, value.Build(builder))
+    }
+
+    builder.StartVector(4, len(values), 4)
+    for _, offset := range raws {
+        builder.PrependUOffsetT(offset)
+    }
+    builder.EndVector(len(values))
+    return 0
+}
+
+func BuildStringArray(builder *flatbuffers.Builder, values []string) flatbuffers.UOffsetT {
+    if values == nil {
+        return 0
+    }
+
+    offsets := []flatbuffers.UOffsetT{}
+    builder.StartVector(4, len(values), 4)
+    for i := 0; i < len(values); i++ {
+        value := values[len(values)-i-1]
+        offsets = append(offsets, BuildString(builder, &value))
+    }
+
+    for _, offset := range offsets {
+        builder.PrependUOffsetT(offset)
+    }
+
+    return builder.EndVector(len(values))
+}
+
+{{~ for type in ['bool', 'uint8', 'uint16', 'uint32', 'uint64', 'int8', 'int16', 'int32', 'int64', 'float32', 'float64', 'byte'] ~}}
+func Build{{ type | @upper_camel }}Array(builder *flatbuffers.Builder, values []{{ type }}) flatbuffers.UOffsetT {
+    if values == nil {
+        return 0
+    }
+
+    builder.StartVector(4, len(values), 4)
+    for i := 0; i < len(values); i++ {
+        value := values[len(values)-i-1]
+        builder.Prepend{{ type | @upper_camel }}(value)
+    }
+    return builder.EndVector(len(values))
+}
+{{~ end ~}}
 
 {{~ for nullable_field in context.nullable_fields ~}}
 {{~ if nullable_field.is_primitive ~}}
@@ -241,7 +368,6 @@ func Deserialize{{ nullable_field.type | @upper_camel }}Ptr(value *nullable.Null
 {{~ end ~}}
 {{~ end ~}}
 
-{{~ for scope in context.scopes ~}}
 // package {{ scope.namespace | array.each @cs_mapped_kwd | array.join '.' }}
 
 {{~ for table in scope.tables ~}}
@@ -252,33 +378,46 @@ type {{ table.name }} struct {
 }
 
 func Deserialize{{ table.name }}(bytes []byte) {{ table.name }} {
-    value := raw.GetRootAs{{ table.name }}(bytes, 0)
+    return DeserializeRaw{{ table.name }}(raw.GetRootAs{{ table.name }}(bytes, 0))
+}
+
+func DeserializeRaw{{ table.name }}(value *raw.{{ table.name }}) {{ table.name }} {
     return {{ table.name }}{ {{ if table.fields | array.size > 0}}{{~ for field in table.fields ~}}{{ deserialize_value('value', field) }}{{~ if !for.last ~}},
 {{~ end ~}}{{~ end ~}}{{~ end ~}}}
 }
 
-func build{{ table.name }}(builder *flatbuffers.Builder,
+func Deserialize{{ table.name }}Array(values []*raw.{{ table.name }}) []{{ table.name }} {
+    result := []{{ table.name }}{}
+    for _, value := range values {
+        result = append(result, DeserializeRaw{{ table.name }}(value))
+    }
+    return result
+}
+
+func NewRaw{{ table.name }}(builder *flatbuffers.Builder,
 {{~ for field in table.fields ~}}
     _{{ for.index }} {{ field | @build_param_type }}{{ if !for.last }},
 {{~ end ~}}{{~ end ~}}) flatbuffers.UOffsetT {
     raw.{{ table.name }}Start(builder)
 {{~ for field in table.fields ~}}
-    raw.{{ table.name }}Add{{ field.name | @upper_camel }}(builder, _{{ for.index }})
+    raw.{{ table.name }}Add{{ field.name | @upper_camel }}(builder, {{ build_field_param('_' + for.index, field) }})
 {{~ end ~}}
     return raw.{{ table.name }}End(builder)
 }
 
-func (value *{{ table.name }}) Build(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
-    if value == nil {
-        return 0
-    }
-
-    return build{{ table.name }}(builder,
+func (value {{ table.name }}) Build(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
+    return NewRaw{{ table.name }}(builder,
 {{~ for field in table.fields ~}}
         {{ build_value('value', field) }}{{~ if !for.last ~}},
 {{ end ~}}
 {{~ end ~}})
 }
 
-{{~ end ~}}
+func (value {{ table.name }}) Serialize() []byte {
+    builder := flatbuffers.NewBuilder(1024)
+    offset := value.Build(builder)
+    builder.Finish(offset)
+    return builder.FinishedBytes()
+}
+
 {{~ end ~}}
