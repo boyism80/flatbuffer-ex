@@ -243,6 +243,7 @@ end
 package {{ scope.namespace | array.last }}
 
 type IFlatBufferEx interface {
+    Serialize() []byte
     Build(*flatbuffers.Builder) flatbuffers.UOffsetT
 }
 
