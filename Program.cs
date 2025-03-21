@@ -1,11 +1,12 @@
 ﻿using FlatBufferEx;
 using FlatBufferEx.Model;
-using FlatBufferEx.Util;
 using NDesk.Options;
 using Scriban;
 using System.Diagnostics;
+#if !DEBUG
+using FlatBufferEx.Util;
 using System.IO.Compression;
-using static System.Formats.Asn1.AsnWriter;
+#endif
 
 namespace FlatBufferExample
 {
@@ -88,13 +89,18 @@ namespace FlatBufferExample
                     _ => throw new ArgumentException()
                 };
 
-                var p = new Process();
-                p.StartInfo.CreateNoWindow = true;
-                p.StartInfo.RedirectStandardOutput = true;
-                p.StartInfo.RedirectStandardError = true;
-                p.StartInfo.FileName = "cmd.exe";
-                p.StartInfo.WorkingDirectory = "flatbuffer";
-                p.StartInfo.Arguments = $"/c flatc.exe --{env} -I {Path.Join(Directory.GetCurrentDirectory(), regeneratedFlatBufferFilePath)} -o {Path.Join(output, "raw", lang)} {string.Join(" ", regeneratedFlatBufferFiles)}";
+                var p = new Process
+                {
+                    StartInfo =
+                    {
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        FileName = "cmd.exe",
+                        WorkingDirectory = "flatbuffer",
+                        Arguments = $"/c flatc.exe --{env} -I {Path.Join(Directory.GetCurrentDirectory(), regeneratedFlatBufferFilePath)} -o {Path.Join(output, "raw", lang)} {string.Join(" ", regeneratedFlatBufferFiles)}",
+                    }
+                };
 
                 if (lang == "go" && string.IsNullOrEmpty(gmn) == false)
                     p.StartInfo.Arguments += $" --go-module-name {gmn}";

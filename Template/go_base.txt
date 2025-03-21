@@ -97,10 +97,10 @@ func DeserializeStringArray(f func(int) []byte, n int) []string {
 func DeserializeClassArray[T any](f func(*T, int) bool, n int) []*T {
     result := []*T{}
     for i := 0; i < n; i++ {
-        var x *T = nil
-        ok := f(x, i)
+        var x T
+        ok := f(&x, i)
         if ok {
-            result = append(result, x)
+            result = append(result, &x)
         }
     }
     return result
@@ -122,8 +122,7 @@ func BuildClassArray[T IFlatBufferEx](builder *flatbuffers.Builder, values []T) 
     for _, offset := range raws {
         builder.PrependUOffsetT(offset)
     }
-    builder.EndVector(len(values))
-    return 0
+    return builder.EndVector(len(values))
 }
 
 func BuildStringArray(builder *flatbuffers.Builder, values []string) flatbuffers.UOffsetT {
