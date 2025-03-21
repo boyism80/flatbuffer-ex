@@ -167,65 +167,19 @@ namespace FlatBufferEx
                 context.Scopes.Add(GetScope(context, file));
             }
 
+            foreach (var scope in context.Scopes)
+            {
+                foreach (var include in scope.IncludeFiles)
+                {
+                    var includeScope = context.Scopes.FirstOrDefault(x => x.FileName == include);
+                    if (includeScope == null)
+                        throw new Exception($"include file not found: {include}");
+
+                    scope.IncludedScopes.Add(includeScope);
+                }
+            }
+
             return context;
         }
-
-        //public static IEnumerable<string> CreateOriginTempFiles(string path, string to, string wildcard, string lang)
-        //{
-        //    if (Directory.Exists(to) == false)
-        //        Directory.CreateDirectory(to);
-
-        //    foreach (var file in Directory.GetFiles(to, wildcard))
-        //    {
-        //        File.Delete(file);
-        //    }
-
-        //    foreach (var file in Directory.GetFiles(path, wildcard))
-        //    {
-        //        var contents = File.ReadAllText(file);
-        //        var matchNamespace = NamespaceRegEx.Match(contents);
-        //        contents = contents.Remove(matchNamespace.Groups["name"].Index, matchNamespace.Groups["name"].Value.Length).Insert(matchNamespace.Groups["name"].Index, string.Join('.', matchNamespace.Groups["name"].Value.Split('.').Select(x => 
-        //        {
-        //            switch (lang)
-        //            {
-        //                case "c#":
-        //                    return ScribanEx.CsReplaceReservedKeyword(x);
-
-        //                default:
-        //                    return x;
-        //            }
-        //        }).Concat(new[] { "origin" })));
-
-        //        var matchFields = FieldRegEx.Matches(contents);
-        //        foreach (var match in matchFields.Cast<Match>().Reverse())
-        //        {
-        //            var values = match.Groups["type"].Value.Split('.').ToList();
-        //            if (values.Count == 1)
-        //                continue;
-
-        //            switch (lang)
-        //            {
-        //                case "c#":
-        //                    values = values.Select(x => ScribanEx.CsReplaceReservedKeyword(x)).ToList();
-        //                    break;
-        //            }
-
-        //            values.Insert(values.Count - 1, "origin");
-        //            contents = contents.Remove(match.Groups["type"].Index, match.Groups["type"].Value.Length).Insert(match.Groups["type"].Index, string.Join('.', values));
-        //        }
-
-        //        var fileName = Path.GetFileName(file);
-        //        File.WriteAllText(Path.Join(to, Path.GetFileName(file)), contents);
-        //        yield return fileName;
-        //    }
-        //}
-
-        //public static IEnumerable<FlatBufferFileInfo> Parse(string path, string wildcard)
-        //{
-        //    foreach (var file in Directory.GetFiles(path, wildcard))
-        //    {
-        //        yield return Parse(file);
-        //    }
-        //}
     }
 }

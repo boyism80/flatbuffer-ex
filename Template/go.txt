@@ -211,8 +211,8 @@ func with_package(str, ns)
         ret str
     end
 
-    ns = (ns | array.last)
-    if ns == (scope.namespace | array.last)
+    ns = (ns | array.join '_')
+    if ns == (scope.namespace | array.join '_')
         ret str
     end
 
@@ -262,16 +262,16 @@ end
 
 ~}}
 
-package {{ scope.namespace | array.last }}
+package {{ scope.namespace | array.join '_' }}
 
 import (
     "{{ go_module_name }}/nullable"
     "{{ go_module_name }}/{{ scope.namespace | array.add 'raw' | array.join '/' }}"
     fbex "{{ go_module_name }}"
 
-{{~ for include_file in include_files ~}}
-    "{{ go_module_name }}/{{ include_file }}"
-    {{ include_file }}_raw "{{ go_module_name }}/{{ include_file }}/raw"
+{{~ for include_scope in include_scopes ~}}
+    {{ include_scope.namespace | array.join '_' }}  "{{ go_module_name }}/{{ include_scope.namespace | array.join '/' }}"
+    {{ include_scope.namespace | array.join '_' }}_raw "{{ go_module_name }}/{{ include_scope.namespace | array.join '/' }}/raw"
 {{~ end ~}}
 
     flatbuffers "github.com/google/flatbuffers/go"

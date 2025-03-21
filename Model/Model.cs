@@ -112,7 +112,7 @@ namespace FlatBufferEx.Model
                 }
             }
         }
-        
+
         [JsonIgnore]
         public bool ContainsPrimitive
         {
@@ -186,7 +186,7 @@ namespace FlatBufferEx.Model
 
         [JsonIgnore]
         public bool ContainsNullableField => Fields.Any(x => x.IsNullable);
-        
+
         [JsonIgnore]
         public IEnumerable<string> ReferenceFiles
         {
@@ -201,12 +201,12 @@ namespace FlatBufferEx.Model
         public IEnumerable<Field> NullableFields => Fields.SelectMany(x => x.NullableFields).GroupBy(x => x.Key).Select(g => g.First());
 
         [JsonIgnore]
-        public IEnumerable<Field> AllFields => Fields.SelectMany(x => x.AllFields).Concat(new[] { ToField() } ).GroupBy(x => x.Key).Select(g => g.First());
+        public IEnumerable<Field> AllFields => Fields.SelectMany(x => x.AllFields).Concat(new[] { ToField() }).GroupBy(x => x.Key).Select(g => g.First());
 
         public Field ToField()
         {
             return new Field
-            { 
+            {
                 Context = Context,
                 Scope = Scope,
                 Table = this,
@@ -218,7 +218,7 @@ namespace FlatBufferEx.Model
     }
 
     public class Enum
-    { 
+    {
         public Context Context { get; set; }
         public Scope Scope { get; set; }
         public string Name { get; set; }
@@ -227,23 +227,24 @@ namespace FlatBufferEx.Model
     }
 
     public class Union
-    { 
+    {
         public string Name { get; set; }
         public List<string> Values { get; set; }
     }
 
     public class Scope
-    { 
+    {
         public Context Context { get; set; }
         public string FileName { get; set; }
         public List<string> Namespace { get; set; }
         public List<string> IncludeFiles { get; set; }
+        public List<Scope> IncludedScopes { get; set; } = [];
         public List<Table> Tables { get; set; }
         public List<Enum> Enums { get; set; }
     }
 
     public class Context
-    { 
+    {
         public List<Scope> Scopes { get; set; }
 
         public bool IsCustomClass(Field field)

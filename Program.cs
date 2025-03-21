@@ -152,6 +152,7 @@ namespace FlatBufferExample
                             ["scope"] = scope,
                             ["go_module_name"] = gmn,
                             ["include_files"] = scope.IncludeFiles,
+                            ["include_scopes"] = scope.IncludedScopes
                         };
                         var ctx = new TemplateContext();
                         ctx.PushGlobal(obj);
