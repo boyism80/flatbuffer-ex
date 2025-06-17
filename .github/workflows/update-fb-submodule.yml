@@ -1,0 +1,42 @@
+name: Update fb Submodule
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  update-submodule:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout flatbuffer-ex
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Configure Git Identity
+        run: |
+          git config --global user.name "github[bot]"
+          git config --global user.email "github[bot]@users.noreply.github.com"
+
+      - name: Clone fb repository
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          git clone --recurse-submodules https://x-access-token:${GH_PAT}@github.com/boyism80/fb.git
+          cd fb
+
+          # Update the flatbuffer-ex submodule
+          git submodule update --remote --merge
+
+          # Stage the submodule update
+          git add tools/flatbuffer-ex
+
+          # Commit only if there's a change
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update flatbuffer-ex submodule"
+            git push origin develop
+          else
+            echo "No changes to commit."
+          fi
