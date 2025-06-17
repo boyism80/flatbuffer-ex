@@ -4,14 +4,24 @@ using Enum = FlatBufferEx.Model.Enum;
 
 namespace FlatBufferEx
 {
+    /// <summary>
+    /// Static parser class for FlatBuffer schema files
+    /// Parses .fbs files and extracts tables, enums, fields, and other schema elements
+    /// </summary>
     public static class Parser
     {
+        // Regular expressions for parsing different FlatBuffer schema elements
         private static readonly Regex FieldRegEx = new Regex(@"\s*(?<name>[_a-zA-Z][_a-zA-Z0-9]*)\s*:\s*(?<type>\[*[_a-zA-Z][_a-zA-Z0-9\.]*\??\]*\??)(?:\s*=\s*(?<init>.+))?\s*(?<deprecated>\(deprecated\))?\s*;");
         private static readonly Regex TableRegEx = new Regex(@"(?<type>struct|table)\s+(?<name>[_a-zA-Z][_a-zA-Z0-9]*)\s*{(?<contents>[\s\S]*?)}");
         private static readonly Regex EnumRegEx = new Regex(@"enum\s+(?<name>[_a-zA-Z][_a-zA-Z0-9]*)\s*:\s*(?<type>[a-zA-Z]+)\s+{\s*(?<contents>[\s\S]*?)}");
         private static readonly Regex NamespaceRegEx = new Regex(@"namespace\s+(?<name>[_a-zA-Z][_a-zA-Z0-9\.]*);");
         private static readonly Regex IncludeRegEx = new Regex(@"include\s*""(?<file>.+)\.fbs""\s*;");
 
+        /// <summary>
+        /// Splits a type string into namespace and type components
+        /// </summary>
+        /// <param name="value">Type string to split</param>
+        /// <returns>Tuple containing namespace list and type name</returns>
         private static (List<string> Namespace, string Type) SplitNamespace(string value)
         {
             if (value.Contains('.'))
@@ -25,6 +35,11 @@ namespace FlatBufferEx
             }
         }
 
+        /// <summary>
+        /// Removes nullable type indicator (?) from type string
+        /// </summary>
+        /// <param name="type">Type string to modify</param>
+        /// <returns>True if nullable indicator was removed</returns>
         private static bool RemoveNullableType(ref string type)
         {
             if (type.EndsWith('?'))
@@ -38,6 +53,11 @@ namespace FlatBufferEx
             }
         }
 
+        /// <summary>
+        /// Removes array type indicators ([]) from type string
+        /// </summary>
+        /// <param name="type">Type string to modify</param>
+        /// <returns>True if array indicators were removed</returns>
         private static bool RemoveArrayType(ref string type)
         {
             if (type.StartsWith('[') && type.EndsWith(']'))
@@ -51,6 +71,15 @@ namespace FlatBufferEx
             }
         }
 
+        /// <summary>
+        /// Creates a Field object from a type string
+        /// Handles nullable types, array types, and nested field structures
+        /// </summary>
+        /// <param name="context">Current parsing context</param>
+        /// <param name="scope">Current scope</param>
+        /// <param name="table">Parent table</param>
+        /// <param name="type">Type string to parse</param>
+        /// <returns>Parsed Field object</returns>
         private static Field GetField(Context context, Scope scope, Table table, string type)
         {
             var field = new Field
@@ -60,7 +89,10 @@ namespace FlatBufferEx
                 Table = table,
             };
 
+            // Check for nullable type
             field.IsNullable = RemoveNullableType(ref type);
+            
+            // Check for array type
             if (RemoveArrayType(ref type))
             {
                 if (field.IsNullable)
@@ -70,16 +102,26 @@ namespace FlatBufferEx
             }
             else
             {
+                // Split namespace and type
                 (field.ReferNamespace, field.Type) = SplitNamespace(type);
             }
 
             return field;
         }
 
+        /// <summary>
+        /// Parses field definitions from table contents
+        /// </summary>
+        /// <param name="context">Current parsing context</param>
+        /// <param name="scope">Current scope</param>
+        /// <param name="table">Parent table</param>
+        /// <param name="contents">Table contents to parse</param>
+        /// <returns>Collection of parsed fields</returns>
         private static IEnumerable<Field> GetFields(Context context, Scope scope, Table table, string contents)
         {
             foreach (Match match in FieldRegEx.Matches(contents))
             {
+                // Skip deprecated fields
                 if (match.Groups["deprecated"].Success)
                     continue;
 
@@ -90,6 +132,13 @@ namespace FlatBufferEx
             }
         }
 
+        /// <summary>
+        /// Parses enum definitions from scope contents
+        /// </summary>
+        /// <param name="context">Current parsing context</param>
+        /// <param name="scope">Current scope</param>
+        /// <param name="contents">Contents to parse</param>
+        /// <returns>Collection of parsed enums</returns>
         private static IEnumerable<Enum> GetEnums(Context context, Scope scope, string contents)
         {
             foreach (Match match in EnumRegEx.Matches(contents))
@@ -105,6 +154,13 @@ namespace FlatBufferEx
             }
         }
 
+        /// <summary>
+        /// Parses table definitions from scope contents
+        /// </summary>
+        /// <param name="context">Current parsing context</param>
+        /// <param name="scope">Current scope</param>
+        /// <param name="contents">Contents to parse</param>
+        /// <returns>Collection of parsed tables</returns>
         private static IEnumerable<Table> GetTables(Context context, Scope scope, string contents)
         {
             foreach (Match match in TableRegEx.Matches(contents))
@@ -122,6 +178,11 @@ namespace FlatBufferEx
             }
         }
 
+        /// <summary>
+        /// Extracts include file names from file contents
+        /// </summary>
+        /// <param name="contents">File contents to parse</param>
+        /// <returns>Collection of include file names</returns>
         private static IEnumerable<string> GetIncludeFiles(string contents)
         {
             foreach (Match match in IncludeRegEx.Matches(contents))
@@ -130,6 +191,11 @@ namespace FlatBufferEx
             }
         }
 
+        /// <summary>
+        /// Extracts namespace from file contents
+        /// </summary>
+        /// <param name="contents">File contents to parse</param>
+        /// <returns>List of namespace components</returns>
         private static List<string> GetNamespace(string contents)
         {
             var matched = NamespaceRegEx.Match(contents);
@@ -139,6 +205,12 @@ namespace FlatBufferEx
             return matched.Groups["name"].Value.Split('.').ToList();
         }
 
+        /// <summary>
+        /// Parses a single FlatBuffer schema file and creates a Scope object
+        /// </summary>
+        /// <param name="context">Current parsing context</param>
+        /// <param name="file">Path to the .fbs file</param>
+        /// <returns>Parsed Scope object</returns>
         public static Scope GetScope(Context context, string file)
         {
             var contents = File.ReadAllText(file);
@@ -155,6 +227,12 @@ namespace FlatBufferEx
             return scope;
         }
 
+        /// <summary>
+        /// Parses all FlatBuffer schema files in a directory
+        /// </summary>
+        /// <param name="path">Directory path containing .fbs files</param>
+        /// <param name="wildcard">File pattern to match (e.g., "*.fbs")</param>
+        /// <returns>Complete parsing context with all scopes</returns>
         public static Context Parse(string path, string wildcard)
         {
             var context = new Context
@@ -162,6 +240,7 @@ namespace FlatBufferEx
                 Scopes = new List<Model.Scope>()
             };
 
+            // Parse each file in the directory
             foreach (var file in Directory.GetFiles(path, wildcard))
             {
                 context.Scopes.Add(GetScope(context, file));
@@ -170,6 +249,7 @@ namespace FlatBufferEx
             return context;
         }
 
+        // Commented out legacy code for creating origin temp files
         //public static IEnumerable<string> CreateOriginTempFiles(string path, string to, string wildcard, string lang)
         //{
         //    if (Directory.Exists(to) == false)
