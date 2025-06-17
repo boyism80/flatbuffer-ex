@@ -34,9 +34,9 @@ jobs:
           git add tools/flatbuffer-ex
 
           # Commit only if there's a change
-          if ! git diff --cached --quiet; then
-            git commit -m "chore: update flatbuffer-ex submodule"
-            git push origin release
+                      if ! git diff --cached --quiet; then
+              git commit -m "chore: update flatbuffer-ex submodule"
+              git push origin release/latest
           else
             echo "No changes to commit."
           fi
