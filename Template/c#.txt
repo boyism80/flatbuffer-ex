@@ -141,7 +141,11 @@ func cs_field_size(field)
     ret 4
 end
 ~}}
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Google.FlatBuffers;
+using Microsoft.Extensions.ObjectPool;
 using nullable;
 
 namespace Google.FlatBuffers
@@ -150,6 +154,48 @@ namespace Google.FlatBuffers
     {
         int ProtocolType { get; }
         byte[] Serialize();
+    }
+
+    public class FlatBufferBuilderPooledPolicy : PooledObjectPolicy<FlatBufferBuilder>
+    {
+        private readonly int _initialSize;
+
+        public FlatBufferBuilderPooledPolicy(int initialSize = 4096)
+        {
+            _initialSize = initialSize;
+        }
+
+        public override FlatBufferBuilder Create()
+        {
+            return new FlatBufferBuilder(_initialSize);
+        }
+
+        public override bool Return(FlatBufferBuilder builder)
+        {
+            builder.Clear();
+            return true;
+        }
+    }
+
+    public static class FlatBufferBuilderPool
+    {
+        private static readonly ObjectPool<FlatBufferBuilder> _pool;
+
+        static FlatBufferBuilderPool()
+        {
+            var policy = new FlatBufferBuilderPooledPolicy(initialSize: 4096);
+            _pool = new DefaultObjectPool<FlatBufferBuilder>(policy, maximumRetained: 256);
+        }
+
+        public static FlatBufferBuilder Get()
+        {
+            return _pool.Get();
+        }
+
+        public static void Return(FlatBufferBuilder builder)
+        {
+            _pool.Return(builder);
+        }
     }
 }
 
@@ -277,10 +323,17 @@ namespace {{ scope.namespace | array.each @cs_mapped_kwd | array.join '.' }}
 
         public byte[] Serialize()
         {
-            var builder = new FlatBufferBuilder(1);
-            var offset = builder.Build(this);
-            builder.Finish(offset.Value);
-            return builder.SizedByteArray();
+            var builder = FlatBufferBuilderPool.Get();
+            try
+            {
+                var offset = builder.Build(this);
+                builder.Finish(offset.Value);
+                return builder.SizedByteArray();
+            }
+            finally
+            {
+                FlatBufferBuilderPool.Return(builder);
+            }
         }
 
         public static {{ table.name }} Deserialize(byte[] bytes)
