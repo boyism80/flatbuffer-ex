@@ -27,10 +27,17 @@ func mapped_kwd(value)
     ret to_mapped_kwd(lang, value)
 end
 ~}}
-{{~ for nullable_field in table.nullable_fields ~}}
-{{~ if nullable_field.is_primitive || nullable_field.is_enum ~}}
-include "nullable_{{ nullable_field.fixed_namespace | array.add nullable_field.type | array.join '_' | string.downcase }}.fbs";
-{{~ end ~}}
+{{~ 
+  include_set = [] 
+  for nullable_field in table.nullable_fields
+    if nullable_field.is_primitive || nullable_field.is_enum
+      include_str = "include \"nullable_" + (nullable_field.fixed_namespace | array.add nullable_field.type | array.join '_' | string.downcase) + ".fbs\";"
+      include_set = include_set | array.add include_str | array.uniq
+    end
+  end
+~}}
+{{~ for include_str in include_set ~}}
+{{ include_str }}
 {{~ end ~}}
 {{~ for reference_file in table.reference_files ~}}
 include "{{ reference_file }}.fbs";
