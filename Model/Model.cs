@@ -14,32 +14,32 @@ namespace FlatBufferEx.Model
         public Scope Scope { get; set; }
         [JsonIgnore]
         public Table Table { get; set; }
-        
+
         /// <summary>
         /// Field name
         /// </summary>
         public string Name { get; set; }
-        
+
         /// <summary>
         /// Field type (primitive, custom class, or "array")
         /// </summary>
         public string Type { get; set; }
-        
+
         /// <summary>
         /// Default initialization value
         /// </summary>
         public string Init { get; set; }
-        
+
         /// <summary>
         /// Namespace reference for custom types
         /// </summary>
         public List<string> ReferNamespace { get; set; }
-        
+
         /// <summary>
         /// Element type for array fields
         /// </summary>
         public Field ArrayElement { get; set; }
-        
+
         /// <summary>
         /// Whether this field can be null
         /// </summary>
@@ -127,25 +127,25 @@ namespace FlatBufferEx.Model
         /// </summary>
         [JsonIgnore]
         public bool IsArray => Type == "array";
-        
+
         /// <summary>
         /// Whether this field is a custom class type
         /// </summary>
         [JsonIgnore]
         public bool IsCustomClass => Context.IsCustomClass(this);
-        
+
         /// <summary>
         /// Whether this field is an enum type
         /// </summary>
         [JsonIgnore]
         public bool IsEnum => Context.IsEnum(this);
-        
+
         /// <summary>
         /// Namespace for this field type
         /// </summary>
         [JsonIgnore]
         public IEnumerable<string> Namespace => ReferNamespace ?? Scope.Namespace;
-        
+
         /// <summary>
         /// Whether this field is a primitive type
         /// </summary>
@@ -175,7 +175,7 @@ namespace FlatBufferEx.Model
                 }
             }
         }
-        
+
         /// <summary>
         /// Whether this field or its array elements contain primitive types
         /// </summary>
@@ -256,27 +256,27 @@ namespace FlatBufferEx.Model
     {
         public Context Context { get; set; }
         public Scope Scope { get; set; }
-        
+
         /// <summary>
         /// Table type ("table" or "struct")
         /// </summary>
         public string Type { get; set; }
-        
+
         /// <summary>
         /// Table name
         /// </summary>
         public string Name { get; set; }
-        
+
         /// <summary>
         /// List of fields in this table
         /// </summary>
         public List<Field> Fields { get; set; }
-        
+
         /// <summary>
         /// Whether this is a root table
         /// </summary>
         public bool Root { get; set; }
-        
+
         /// <summary>
         /// Namespace for this table
         /// </summary>
@@ -287,7 +287,7 @@ namespace FlatBufferEx.Model
         /// </summary>
         [JsonIgnore]
         public bool ContainsNullableField => Fields.Any(x => x.IsNullable);
-        
+
         /// <summary>
         /// Gets all reference files needed by this table
         /// </summary>
@@ -306,6 +306,13 @@ namespace FlatBufferEx.Model
         /// </summary>
         [JsonIgnore]
         public IEnumerable<Field> AllFields => Fields.SelectMany(x => x.AllFields);
+
+        /// <summary>
+        /// Gets all nullable fields except string and array types.
+        /// These fields require special nullable type wrappers in FlatBuffer.
+        /// </summary>
+        [JsonIgnore]
+        public IEnumerable<Field> NullableFields => AllFields.Where(x => x.IsNullable && x.Type != "string" && x.Type != "array");
 
         /// <summary>
         /// Converts this table to a field representation
@@ -331,17 +338,17 @@ namespace FlatBufferEx.Model
     {
         public Context Context { get; set; }
         public Scope Scope { get; set; }
-        
+
         /// <summary>
         /// Enum name
         /// </summary>
         public string Name { get; set; }
-        
+
         /// <summary>
         /// Underlying enum type
         /// </summary>
         public string Type { get; set; }
-        
+
         /// <summary>
         /// List of enum values
         /// </summary>
@@ -357,7 +364,7 @@ namespace FlatBufferEx.Model
         /// Union name
         /// </summary>
         public string Name { get; set; }
-        
+
         /// <summary>
         /// List of union member types
         /// </summary>
@@ -370,27 +377,27 @@ namespace FlatBufferEx.Model
     public class Scope
     {
         public Context Context { get; set; }
-        
+
         /// <summary>
         /// Source file name
         /// </summary>
         public string FileName { get; set; }
-        
+
         /// <summary>
         /// Namespace components
         /// </summary>
         public List<string> Namespace { get; set; }
-        
+
         /// <summary>
         /// List of included files
         /// </summary>
         public List<string> IncludeFiles { get; set; }
-        
+
         /// <summary>
         /// Tables defined in this scope
         /// </summary>
         public List<Table> Tables { get; set; }
-        
+
         /// <summary>
         /// Enums defined in this scope
         /// </summary>
@@ -498,27 +505,27 @@ namespace FlatBufferEx.Model
         /// File name
         /// </summary>
         public string File { get; set; }
-        
+
         /// <summary>
         /// Root type name
         /// </summary>
         public string RootType { get; set; }
-        
+
         /// <summary>
         /// Namespace components
         /// </summary>
         public List<string> Namespace { get; set; }
-        
+
         /// <summary>
         /// Included files
         /// </summary>
         public List<string> Includes { get; set; } = new List<string>();
-        
+
         /// <summary>
         /// Tables in this file
         /// </summary>
         public List<Table> Tables { get; set; } = new List<Table>();
-        
+
         /// <summary>
         /// Enums in this file
         /// </summary>
