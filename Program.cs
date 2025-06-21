@@ -1,10 +1,7 @@
-﻿using FlatBufferEx;
-using FlatBufferEx.Model;
-using FlatBufferEx.Util;
+using FlatBufferEx;
+using FlatBufferEx.Configuration;
+using FlatBufferEx.Services;
 using NDesk.Options;
-using Scriban;
-using System.Diagnostics;
-using System.IO.Compression;
 
 namespace FlatBufferExample
 {
@@ -21,196 +18,115 @@ namespace FlatBufferExample
     class Program
     {
         /// <summary>
-        /// Generates raw FlatBuffer files based on the context.
-        /// Creates individual .fbs files for each table and enum,
-        /// and also generates files for nullable fields.
-        /// </summary>
-        /// <param name="context">Parsed FlatBuffer context</param>
-        /// <param name="output">Output directory path</param>
-        /// <param name="lang">Target language</param>
-        /// <returns>Generated file paths</returns>
-        private static IEnumerable<string> GenerateRawFlatBufferFiles(Context context, string output, string lang)
-        {
-            // Initialize output directory
-            if (Directory.Exists(output))
-                Directory.Delete(output, true);
-            Directory.CreateDirectory(output);
-            
-            // Generate .fbs files for tables in each scope
-            foreach (var scope in context.Scopes)
-            {
-                foreach (var table in scope.Tables)
-                {
-                    var contents = Generator.RawFlatBufferTableContents(table, lang);
-                    var path = Path.Combine(output, $"{string.Join('.', scope.Namespace)}.{table.Name.ToLower()}.fbs");
-                    File.WriteAllText(path, contents);
-                    yield return path;
-                }
-
-                // Generate .fbs files for enums in each scope
-                foreach (var e in scope.Enums)
-                {
-                    var contents = Generator.RawFlatBufferEnumContents(e, lang);
-                    var path = Path.Combine(output, $"{string.Join('.', scope.Namespace)}.{e.Name.ToLower()}.fbs");
-                    File.WriteAllText(path, contents);
-                    yield return path;
-                }
-            }
-
-            // Generate .fbs files for nullable fields
-            foreach (var nullableField in context.NullableFields)
-            {
-                var fname = $"nullable_{string.Join('_', nullableField.FixedNamespace.Concat(new[] { nullableField.Type }))}.fbs".ToLower();
-                var path = Path.Combine(output, fname);
-                File.WriteAllText(path, Template.Parse(File.ReadAllText("Template/nullable.txt")).Render(new { Field = nullableField }));
-                yield return path;
-            }
-        }
-
-        /// <summary>
         /// Application entry point
         /// Parses command line arguments and executes FlatBuffer compiler to generate code.
         /// </summary>
         /// <param name="args">Command line arguments</param>
-        static async Task Main(string[] args)
+        static async Task<int> Main(string[] args)
         {
-            // Default configuration values
-            var path = @"D:\Users\CSHYEON\Data\git\game\c++\fb\protocol";
-            var output = "output";
-            var includePath = string.Empty;
-            var languages = "c++|c#";
-            
-            // Parse command line options
-            var options = new OptionSet
+            try
             {
-                { "p|path=", "input directory", v => path = v },
-                { "l|lang=", "code language", v => languages = v },
-                { "o|output=", "output directory", v => output = v },
-                { "i|include=", "include directory path", v => includePath = v },
-            };
-            options.Parse(args);
-            
-            // Prepare output directory
-            output = Path.GetFullPath(output);
-            if (Directory.Exists(output))
-                Directory.Delete(output, true);
-            Directory.CreateDirectory(output);
-
-#if !DEBUG
-            // Download and extract FlatBuffer compiler in Release mode
-            await Http.DownloadFile("https://github.com/google/flatbuffers/releases/download/v25.2.10/Windows.flatc.binary.zip", "flatbuffer.zip");
-            if (Directory.Exists("flatbuffer"))
-                Directory.Delete("flatbuffer", true);
-            ZipFile.ExtractToDirectory("flatbuffer.zip", "flatbuffer");
-#endif
-
-            // Parse FlatBuffer schema files to create context
-            var context = Parser.Parse(path, "*.fbs");
-            
-            // Generate code for each language
-            foreach (var lang in languages.Split('|').Select(x => x.Trim().ToLower()).Distinct().ToHashSet())
-            {
-                var regeneratedFlatBufferFilePath = "raw";
-                
-                // Generate raw FlatBuffer files
-                var regeneratedFlatBufferFiles = GenerateRawFlatBufferFiles(context, regeneratedFlatBufferFilePath, lang)
-                    .Select(f => Path.Join(Directory.GetCurrentDirectory(), f)).ToList();
-                
-                // Set language-specific environment
-                var env = lang switch
+                var config = ParseCommandLineArguments(args);
+                if (config == null)
                 {
-                    "c++" => "cpp",
-                    "c#" => "csharp",
-                    _ => throw new ArgumentException()
-                };
-
-                // Execute FlatBuffer compiler
-                var p = new Process();
-                p.StartInfo.CreateNoWindow = true;
-                p.StartInfo.RedirectStandardOutput = true;
-                p.StartInfo.RedirectStandardError = true;
-                p.StartInfo.FileName = "cmd.exe";
-                p.StartInfo.WorkingDirectory = "flatbuffer";
-                p.StartInfo.Arguments = $"/c flatc.exe --{env} -I {Path.Join(Directory.GetCurrentDirectory(), regeneratedFlatBufferFilePath)} -o {Path.Join(output, "raw", lang)} {string.Join(" ", regeneratedFlatBufferFiles)}";
-                p.Start();
-
-                // Read standard output
-                while (p.StandardOutput.Peek() > -1)
-                {
-                    var line = await p.StandardOutput.ReadLineAsync();
-                    Console.WriteLine(line);
+                    ShowUsage();
+                    return 1;
                 }
 
-                // Read standard error
-                while (p.StandardError.Peek() > -1)
-                {
-                    var line = await p.StandardError.ReadLineAsync();
-                    Console.WriteLine(line);
-                }
-
-#if !DEBUG
-                // Clean up temporary files
-                Directory.Delete(regeneratedFlatBufferFilePath, true);
-#endif
-                // Exit if compiler execution failed
-                if (p.ExitCode != 0)
-                    Environment.Exit(p.ExitCode);
-
-                // Load language-specific template
-                var template = lang switch
-                {
-                    "c++" => Template.Parse(File.ReadAllText("Template/cpp.txt")),
-                    "c#" => Template.Parse(File.ReadAllText("Template/c#.txt")),
-                    _ => throw new ArgumentException()
-                };
-
-                // Set language-specific file extension
-                var ext = lang switch
-                {
-                    "c++" => ".h",
-                    "c#" => ".cs",
-                    _ => throw new ArgumentException()
-                };
-
-                // Prepare output directory
-                var dir = Path.Join(output, lang);
-                if (Directory.Exists(dir))
-                    Directory.Delete(dir, true);
-                Directory.CreateDirectory(dir);
-
-                // Set up Scriban template context
-                var obj = new ScribanEx();
-                obj.Add("context", context);
-                obj.Add("include_path", includePath);
-                var ctx = new TemplateContext();
-                ctx.PushGlobal(obj);
-
-                // Generate final code file
-                var dest = Path.Join(dir, $"protocol{ext}");
-                if (!Directory.Exists(Path.GetDirectoryName(dest)))
-                    Directory.CreateDirectory(Path.GetDirectoryName(dest));
-
-                File.WriteAllText(dest, template.Render(ctx));
+                var services = CreateServices();
+                var processor = new FlatBufferProcessor(services);
+                
+                await processor.ProcessAsync(config);
+                
+                Console.WriteLine("FlatBuffer code generation completed successfully.");
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error: {ex.Message}");
+                Console.Error.WriteLine($"Stack trace: {ex.StackTrace}");
+                return 1;
             }
         }
 
         /// <summary>
-        /// Converts include file list to file names.
-        /// (Currently unused method)
+        /// Parses command line arguments and returns configuration
         /// </summary>
-        /// <param name="includes">Include file list</param>
-        /// <param name="parseResultList">Parse result list</param>
-        /// <returns>File names</returns>
-        private static IEnumerable<string> IncludesToFiles(List<string> includes, List<FlatBufferFileInfo> parseResultList)
+        /// <param name="args">Command line arguments</param>
+        /// <returns>Configuration object or null if parsing failed</returns>
+        private static AppConfiguration ParseCommandLineArguments(string[] args)
         {
-            foreach (var include in includes)
+            var config = new AppConfiguration();
+            var showHelp = false;
+            
+            var options = new OptionSet
             {
-                foreach (var parseResult in parseResultList)
+                { "p|path=", "input directory containing .fbs files", v => config.InputPath = v },
+                { "l|lang=", "target languages (e.g., \"c++|c#\")", v => config.Languages = v },
+                { "o|output=", "output directory for generated code", v => config.OutputPath = v },
+                { "i|include=", "include directory path", v => config.IncludePath = v },
+                { "h|help", "show this help message", v => showHelp = v != null },
+            };
+
+            try
+            {
+                options.Parse(args);
+                
+                if (showHelp)
                 {
-                    if (parseResult.File == include)
-                        yield return string.Join('.', parseResult.Namespace);
+                    ShowUsage(options);
+                    return null;
                 }
+
+                if (!config.IsValid(out var validationErrors))
+                {
+                    Console.Error.WriteLine("Configuration validation failed:");
+                    foreach (var error in validationErrors)
+                    {
+                        Console.Error.WriteLine($"  - {error}");
+                    }
+                    return null;
+                }
+
+                return config;
+            }
+            catch (OptionException ex)
+            {
+                Console.Error.WriteLine($"Command line parsing error: {ex.Message}");
+                return null;
             }
         }
+
+        /// <summary>
+        /// Creates and configures service dependencies
+        /// </summary>
+        /// <returns>Service container</returns>
+        private static ServiceContainer CreateServices()
+        {
+            var services = new ServiceContainer();
+            services.RegisterSingleton<IFileService, FileService>();
+            services.RegisterSingleton<ITemplateService, TemplateService>();
+            services.RegisterSingleton<IFlatBufferCompilerService, FlatBufferCompilerService>();
+            services.RegisterSingleton<ICodeGenerationService, CodeGenerationService>();
+            return services;
+        }
+
+        /// <summary>
+        /// Shows usage information
+        /// </summary>
+        /// <param name="options">Option set for detailed help</param>
+        private static void ShowUsage(OptionSet options = null)
+        {
+            Console.WriteLine("FlatBufferEx - Enhanced FlatBuffer code generator");
+            Console.WriteLine();
+            Console.WriteLine("Usage: dotnet run -- [OPTIONS]");
+            Console.WriteLine();
+            Console.WriteLine("Options:");
+            options?.WriteOptionDescriptions(Console.Out);
+            Console.WriteLine();
+            Console.WriteLine("Examples:");
+            Console.WriteLine("  dotnet run -- --path ./schemas --lang \"c#\" --output ./generated");
+            Console.WriteLine("  dotnet run -- --path ./schemas --lang \"c++|c#\" --output ./generated --include ./common");
+        }
     }
-}
+} 

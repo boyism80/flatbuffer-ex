@@ -191,9 +191,21 @@ The pool configuration:
 
 ### Core Components
 - **Parser**: Parses `.fbs` schema files and extracts structure information
-- **Generator**: Creates raw FlatBuffer files and generates target language code
+- **Services**: Service-based architecture with dependency injection
+  - **IFileService**: File system operations abstraction
+  - **ITemplateService**: Template rendering operations
+  - **IFlatBufferCompilerService**: FlatBuffer compiler management
+  - **ICodeGenerationService**: Code generation orchestration
 - **Model**: Represents parsed schema elements (tables, fields, enums)
+- **Configuration**: Centralized configuration management with validation
 - **Templates**: Scriban templates for code generation
+
+### Service Architecture
+FlatBufferEx uses a service-based architecture with dependency injection:
+- **Separation of Concerns**: Each service handles a specific responsibility
+- **Testability**: Services can be easily mocked for unit testing
+- **Maintainability**: Clear interfaces make the code easier to understand and modify
+- **Error Handling**: Centralized error handling with detailed error messages
 
 ### Template System
 FlatBufferEx uses Scriban templates for flexible code generation:

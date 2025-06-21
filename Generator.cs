@@ -1,4 +1,5 @@
 ﻿using FlatBufferEx.Model;
+using FlatBufferEx.Services;
 using Scriban;
 
 namespace FlatBufferEx
@@ -7,11 +8,12 @@ namespace FlatBufferEx
     /// Static generator class for creating FlatBuffer schema content
     /// Generates raw FlatBuffer (.fbs) content for tables and enums using Scriban templates
     /// </summary>
+    [Obsolete("Use ITemplateService instead. This class is kept for backward compatibility.")]
     public static class Generator
     {
         // Pre-compiled Scriban templates for generating raw FlatBuffer content
-        private static readonly Template RawTableTemplate = Template.Parse(File.ReadAllText("Template/raw.table.txt"));
-        private static readonly Template RawEnumTemplate = Template.Parse(File.ReadAllText("Template/raw.enum.txt"));
+        private static readonly Lazy<Template> RawTableTemplate = new(() => Template.Parse(File.ReadAllText("Template/raw.table.txt")));
+        private static readonly Lazy<Template> RawEnumTemplate = new(() => Template.Parse(File.ReadAllText("Template/raw.enum.txt")));
 
         /// <summary>
         /// Generates raw FlatBuffer table content using the table template
@@ -29,7 +31,7 @@ namespace FlatBufferEx
             ctx.PushGlobal(obj);
 
             // Render the template with the context
-            return RawTableTemplate.Render(ctx);
+            return RawTableTemplate.Value.Render(ctx);
         }
 
         /// <summary>
@@ -48,7 +50,7 @@ namespace FlatBufferEx
             ctx.PushGlobal(obj);
             
             // Render the template with the context
-            return RawEnumTemplate.Render(ctx);
+            return RawEnumTemplate.Value.Render(ctx);
         }
     }
 }
