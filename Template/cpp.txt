@@ -189,6 +189,8 @@ end
 
 #include <string>
 #include <optional>
+#include <mutex>
+#include <memory>
 {{~ for scope in context.scopes ~}}
 {{~ for enum in scope.enums ~}}
 #include <{{ if include_path != '' }}{{ include_path }}/{{ end }}{{ scope.namespace | array.join '.' | string.downcase }}.{{ enum.name | string.downcase }}_generated.h>
