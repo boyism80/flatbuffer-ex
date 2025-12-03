@@ -3,15 +3,19 @@ namespace FlatBufferEx.Services
     /// <summary>
     /// Implementation of file system operations
     /// </summary>
-    public class FileService : IFileService
+    public class FileService
     {
-        /// <inheritdoc />
+        /// <summary>
+        /// Reads all text from a file asynchronously
+        /// </summary>
         public async Task<string> ReadAllTextAsync(string path)
         {
             return await File.ReadAllTextAsync(path);
         }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Writes all text to a file asynchronously
+        /// </summary>
         public async Task WriteAllTextAsync(string path, string content)
         {
             var directory = GetDirectoryName(path);
@@ -19,23 +23,29 @@ namespace FlatBufferEx.Services
             {
                 CreateDirectory(directory);
             }
-            
+
             await File.WriteAllTextAsync(path, content);
         }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Checks if a directory exists
+        /// </summary>
         public bool DirectoryExists(string path)
         {
             return Directory.Exists(path);
         }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Creates a directory
+        /// </summary>
         public void CreateDirectory(string path)
         {
             Directory.CreateDirectory(path);
         }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Deletes a directory and all its contents
+        /// </summary>
         public void DeleteDirectory(string path)
         {
             if (DirectoryExists(path))
@@ -44,28 +54,36 @@ namespace FlatBufferEx.Services
             }
         }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Gets files matching a search pattern
+        /// </summary>
         public string[] GetFiles(string path, string searchPattern)
         {
             return Directory.GetFiles(path, searchPattern);
         }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Combines path components
+        /// </summary>
         public string CombinePath(params string[] paths)
         {
             return Path.Combine(paths);
         }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Gets the full path for a relative path
+        /// </summary>
         public string GetFullPath(string path)
         {
             return Path.GetFullPath(path);
         }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Gets the directory name from a file path
+        /// </summary>
         public string GetDirectoryName(string path)
         {
             return Path.GetDirectoryName(path) ?? string.Empty;
         }
     }
-} 
+}

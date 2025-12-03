@@ -1,8 +1,13 @@
+{{~
+func mapped_kwd(value)
+    ret to_mapped_kwd(lang, value)
+end
+~}}
 {{~ if !field.is_primitive ~}}
 include '{{ field.fixed_namespace | array.add field.type | array.join '.' | string.downcase }}.fbs';
 {{~ end ~}}
 namespace nullable;
 
 table nullable_{{ field.fixed_namespace | array.add field.type | array.join '_' | string.downcase }} {
-  value: {{ field.fixed_raw_namespace | array.add field.type | array.join '.' }};
+  value: {{ field.fixed_raw_namespace | array.add field.type | array.each @mapped_kwd | array.join '.' }};
 }

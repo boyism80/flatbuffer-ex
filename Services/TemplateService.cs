@@ -6,18 +6,20 @@ namespace FlatBufferEx.Services
     /// <summary>
     /// Implementation of template operations using Scriban
     /// </summary>
-    public class TemplateService : ITemplateService
+    public class TemplateService
     {
-        private readonly IFileService _fileService;
+        private readonly FileService _fileService;
         private readonly Dictionary<string, Template> _templateCache;
 
-        public TemplateService(IFileService fileService)
+        public TemplateService(FileService fileService)
         {
             _fileService = fileService ?? throw new ArgumentNullException(nameof(fileService));
             _templateCache = new Dictionary<string, Template>();
         }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Renders a template for raw FlatBuffer table content
+        /// </summary>
         public async Task<string> RenderTableTemplateAsync(Table table, string language)
         {
             var template = await GetTemplateAsync("Template/raw.table.txt");
@@ -30,7 +32,9 @@ namespace FlatBufferEx.Services
             return await template.RenderAsync(context);
         }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Renders a template for raw FlatBuffer enum content
+        /// </summary>
         public async Task<string> RenderEnumTemplateAsync(Model.Enum enumModel, string language)
         {
             var template = await GetTemplateAsync("Template/raw.enum.txt");
@@ -45,13 +49,16 @@ namespace FlatBufferEx.Services
             return await template.RenderAsync(context);
         }
 
-        /// <inheritdoc />
-        public async Task<string> RenderNullableTemplateAsync(Field field)
+        /// <summary>
+        /// Renders a template for nullable field content
+        /// </summary>
+        public async Task<string> RenderNullableTemplateAsync(Field field, string language)
         {
             var template = await GetTemplateAsync("Template/nullable.txt");
             var scribanEx = new ScribanEx
             {
-                ["field"] = field
+                ["field"] = field,
+                ["lang"] = language
             };
             var context = new TemplateContext();
             context.PushGlobal(scribanEx);
@@ -59,7 +66,9 @@ namespace FlatBufferEx.Services
             return await template.RenderAsync(context);
         }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Renders the main language template
+        /// </summary>
         public async Task<string> RenderLanguageTemplateAsync(Context context, string language, string includePath)
         {
             var templatePath = language switch

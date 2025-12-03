@@ -8,30 +8,32 @@ namespace FlatBufferEx.Services
     /// <summary>
     /// Implementation of FlatBuffer compiler operations
     /// </summary>
-    public class FlatBufferCompilerService : IFlatBufferCompilerService
+    public class FlatBufferCompilerService
     {
-        private readonly IFileService _fileService;
+        private readonly FileService _fileService;
 
-        public FlatBufferCompilerService(IFileService fileService)
+        public FlatBufferCompilerService(FileService fileService)
         {
             _fileService = fileService ?? throw new ArgumentNullException(nameof(fileService));
         }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Sets up the FlatBuffer compiler by downloading and extracting it
+        /// </summary>
         public async Task SetupCompilerAsync(string downloadUrl, string extractPath)
         {
 #if !DEBUG
             const string zipFileName = "flatbuffer.zip";
-            
+
             // Download the compiler
             await Http.DownloadFile(downloadUrl, zipFileName);
-            
+
             // Clean up existing directory
             _fileService.DeleteDirectory(extractPath);
-            
+
             // Extract the compiler
             ZipFile.ExtractToDirectory(zipFileName, extractPath);
-            
+
             // Clean up zip file
             if (File.Exists(zipFileName))
             {
@@ -43,12 +45,14 @@ namespace FlatBufferEx.Services
 #endif
         }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Compiles FlatBuffer schema files for the target language
+        /// </summary>
         public async Task<bool> CompileAsync(string language, IEnumerable<string> inputFiles, string outputPath, string includePath, string compilerPath)
         {
             var environment = GetCompilerEnvironment(language);
             var inputFileList = inputFiles.ToList();
-            
+
             if (!inputFileList.Any())
             {
                 throw new ArgumentException("No input files specified", nameof(inputFiles));
@@ -61,17 +65,17 @@ namespace FlatBufferEx.Services
             // Split files into batches to avoid Windows command line length limit (~8,191 characters)
             const int maxCommandLineLength = 7000; // Leave some margin for safety
             var batches = SplitIntoBatches(inputFileList, outputPath, includePath, environment, maxCommandLineLength);
-            
+
             Console.WriteLine($"  Compiling {inputFileList.Count} files in {batches.Count} batch(es)...");
-            
+
             // Compile each batch
             for (int i = 0; i < batches.Count; i++)
             {
                 var batch = batches[i];
                 Console.WriteLine($"  Batch {i + 1}/{batches.Count}: {batch.Count} files");
-                
+
                 var arguments = BuildCompilerArguments(environment, batch, outputPath, includePath);
-                
+
                 // Execute compiler
                 var process = new Process
                 {
@@ -144,26 +148,26 @@ namespace FlatBufferEx.Services
             var batches = new List<List<string>>();
             var currentBatch = new List<string>();
             var baseArgsLength = CalculateBaseArgsLength(environment, outputPath, includePath);
-            
+
             foreach (var file in inputFiles)
             {
                 var fileArgLength = $"\"{file}\"".Length + 1; // +1 for space
                 var currentBatchLength = baseArgsLength + currentBatch.Sum(f => $"\"{f}\"".Length + 1);
-                
+
                 if (currentBatchLength + fileArgLength > maxLength && currentBatch.Count > 0)
                 {
                     batches.Add(currentBatch);
                     currentBatch = new List<string>();
                 }
-                
+
                 currentBatch.Add(file);
             }
-            
+
             if (currentBatch.Count > 0)
             {
                 batches.Add(currentBatch);
             }
-            
+
             return batches;
         }
 
@@ -177,12 +181,12 @@ namespace FlatBufferEx.Services
         private static int CalculateBaseArgsLength(string environment, string outputPath, string includePath)
         {
             var length = $"--{environment} -o \"{outputPath}\"".Length + 1; // +1 for space before file args
-            
+
             if (!string.IsNullOrWhiteSpace(includePath))
             {
                 length += $" -I \"{includePath}\"".Length;
             }
-            
+
             return length;
         }
 
@@ -213,4 +217,4 @@ namespace FlatBufferEx.Services
             return string.Join(" ", args);
         }
     }
-} 
+}

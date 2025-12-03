@@ -33,8 +33,8 @@ namespace FlatBufferExample
                     return 1;
                 }
 
-                var services = CreateServices();
-                var processor = new FlatBufferProcessor(services);
+                var (fileService, templateService, compilerService, codeGenerationService) = CreateServices();
+                var processor = new FlatBufferProcessor(fileService, templateService, compilerService, codeGenerationService);
                 
                 await processor.ProcessAsync(config);
                 
@@ -100,15 +100,14 @@ namespace FlatBufferExample
         /// <summary>
         /// Creates and configures service dependencies
         /// </summary>
-        /// <returns>Service container</returns>
-        private static ServiceContainer CreateServices()
+        /// <returns>Tuple containing all service instances</returns>
+        private static (FileService fileService, TemplateService templateService, FlatBufferCompilerService compilerService, CodeGenerationService codeGenerationService) CreateServices()
         {
-            var services = new ServiceContainer();
-            services.RegisterSingleton<IFileService, FileService>();
-            services.RegisterSingleton<ITemplateService, TemplateService>();
-            services.RegisterSingleton<IFlatBufferCompilerService, FlatBufferCompilerService>();
-            services.RegisterSingleton<ICodeGenerationService, CodeGenerationService>();
-            return services;
+            var fileService = new FileService();
+            var templateService = new TemplateService(fileService);
+            var compilerService = new FlatBufferCompilerService(fileService);
+            var codeGenerationService = new CodeGenerationService(fileService, templateService);
+            return (fileService, templateService, compilerService, codeGenerationService);
         }
 
         /// <summary>

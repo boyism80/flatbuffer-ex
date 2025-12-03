@@ -7,19 +7,17 @@ namespace FlatBufferEx.Services
     /// </summary>
     public class FlatBufferProcessor
     {
-        private readonly ServiceContainer _services;
-        private readonly IFileService _fileService;
-        private readonly ITemplateService _templateService;
-        private readonly IFlatBufferCompilerService _compilerService;
-        private readonly ICodeGenerationService _codeGenerationService;
+        private readonly FileService _fileService;
+        private readonly TemplateService _templateService;
+        private readonly FlatBufferCompilerService _compilerService;
+        private readonly CodeGenerationService _codeGenerationService;
 
-        public FlatBufferProcessor(ServiceContainer services)
+        public FlatBufferProcessor(FileService fileService, TemplateService templateService, FlatBufferCompilerService compilerService, CodeGenerationService codeGenerationService)
         {
-            _services = services ?? throw new ArgumentNullException(nameof(services));
-            _fileService = _services.GetService<IFileService>();
-            _templateService = _services.GetService<ITemplateService>();
-            _compilerService = _services.GetService<IFlatBufferCompilerService>();
-            _codeGenerationService = _services.GetService<ICodeGenerationService>();
+            _fileService = fileService ?? throw new ArgumentNullException(nameof(fileService));
+            _templateService = templateService ?? throw new ArgumentNullException(nameof(templateService));
+            _compilerService = compilerService ?? throw new ArgumentNullException(nameof(compilerService));
+            _codeGenerationService = codeGenerationService ?? throw new ArgumentNullException(nameof(codeGenerationService));
         }
 
         /// <summary>
@@ -117,7 +115,7 @@ namespace FlatBufferEx.Services
 #if !DEBUG
             // Clean up compiler directory
             _fileService.DeleteDirectory(config.CompilerDirectory);
-            
+
             // Clean up any remaining temporary files
             _fileService.DeleteDirectory(config.TempDirectory);
 #endif
