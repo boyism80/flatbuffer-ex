@@ -1,6 +1,7 @@
 using FlatBufferEx;
 using FlatBufferEx.Configuration;
 using FlatBufferEx.Services;
+using Microsoft.Extensions.DependencyInjection;
 using NDesk.Options;
 
 namespace FlatBufferExample
@@ -33,11 +34,11 @@ namespace FlatBufferExample
                     return 1;
                 }
 
-                var (fileService, templateService, compilerService, codeGenerationService) = CreateServices();
-                var processor = new FlatBufferProcessor(fileService, templateService, compilerService, codeGenerationService);
-                
+                using var serviceProvider = CreateServiceProvider();
+                var processor = serviceProvider.GetRequiredService<FlatBufferProcessor>();
+
                 await processor.ProcessAsync(config);
-                
+
                 Console.WriteLine("FlatBuffer code generation completed successfully.");
                 return 0;
             }
@@ -58,7 +59,7 @@ namespace FlatBufferExample
         {
             var config = new AppConfiguration();
             var showHelp = false;
-            
+
             var options = new OptionSet
             {
                 { "p|path=", "input directory containing .fbs files", v => config.InputPath = v },
@@ -71,7 +72,7 @@ namespace FlatBufferExample
             try
             {
                 options.Parse(args);
-                
+
                 if (showHelp)
                 {
                     ShowUsage(options);
@@ -98,16 +99,21 @@ namespace FlatBufferExample
         }
 
         /// <summary>
-        /// Creates and configures service dependencies
+        /// Creates and configures service dependencies using ASP.NET Core DI
         /// </summary>
-        /// <returns>Tuple containing all service instances</returns>
-        private static (FileService fileService, TemplateService templateService, FlatBufferCompilerService compilerService, CodeGenerationService codeGenerationService) CreateServices()
+        /// <returns>Service provider with all services registered</returns>
+        private static ServiceProvider CreateServiceProvider()
         {
-            var fileService = new FileService();
-            var templateService = new TemplateService(fileService);
-            var compilerService = new FlatBufferCompilerService(fileService);
-            var codeGenerationService = new CodeGenerationService(fileService, templateService);
-            return (fileService, templateService, compilerService, codeGenerationService);
+            var services = new ServiceCollection();
+
+            // Register services as singletons
+            services.AddSingleton<FileService>();
+            services.AddSingleton<TemplateService>();
+            services.AddSingleton<FlatBufferCompilerService>();
+            services.AddSingleton<CodeGenerationService>();
+            services.AddSingleton<FlatBufferProcessor>();
+
+            return services.BuildServiceProvider();
         }
 
         /// <summary>
@@ -128,4 +134,4 @@ namespace FlatBufferExample
             Console.WriteLine("  dotnet run -- --path ./schemas --lang \"c++|c#\" --output ./generated --include ./common");
         }
     }
-} 
+}
