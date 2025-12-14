@@ -87,7 +87,7 @@ func cs_create_field(raw_name, field)
     end
 
     if field.is_custom_class
-        $value = 'new ' + field.type + '(' + $flatbuffer_value + ')'
+        $value = 'new ' + (field | @cs_type) + '(' + $flatbuffer_value + ')'
     else if field.type == 'string'
         $value = $flatbuffer_value
     else if field.type == 'array'
