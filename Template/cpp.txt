@@ -79,8 +79,10 @@ end
 func cpp_decorate_const_ref(field)
     $result = field | @cpp_type
 
-    if field.is_nullable || field.type == 'string' || field.is_custom_class
+    if field.is_nullable || field.is_custom_class
         $result = 'const ' + $result + '&'
+    else if field.type == 'string'
+        $result = 'std::string_view'
     end
 
     ret $result
@@ -181,6 +183,14 @@ func cpp_default_value(field)
 
     ret $result
 end
+
+func cpp_member_initializer(field)
+    if field.type == 'string' && !field.is_nullable
+        ret 'std::string(' + field.name + ')'
+    else
+        ret field.name
+    end
+end
 ~}}
 // clang-format off
 
@@ -188,6 +198,7 @@ end
 #define __FLATBUFFER_PROTOCOL_H__
 
 #include <string>
+#include <string_view>
 #include <optional>
 #include <mutex>
 #include <memory>
@@ -218,7 +229,7 @@ namespace flatbuffers {
 class option
 {
 public:
-    using encoding_func_type = std::function<std::string(const std::string&)>;
+    using encoding_func_type = std::function<std::string(std::string_view)>;
 
 private:
     encoding_func_type encoding_func;
@@ -258,7 +269,7 @@ public:
     }
 
 public:
-    static std::string encode(const std::string& value)
+    static std::string encode(std::string_view value)
     {
         auto& ist = get();
         if (ist.encoding_func)
@@ -267,12 +278,12 @@ public:
         }
         else
         {
-            return value;
+            return std::string(value);
         }
     }
 
 public:
-    static std::string decode(const std::string& value)
+    static std::string decode(std::string_view value)
     {
         auto& ist = get();
         if (ist.decoding_func)
@@ -281,7 +292,7 @@ public:
         }
         else
         {
-            return value;
+            return std::string(value);
         }
     }
 };
@@ -319,7 +330,7 @@ template <typename T> struct FlatBufferOffset<std::vector<T>> { typedef flatbuff
 template <typename T> inline static
 typename FlatBufferOffset<T>::type build(FlatBufferBuilder& builder, const T& value);
 template <>
-flatbuffers::Offset<flatbuffers::String> build<std::string>(FlatBufferBuilder& builder, const std::string& value);
+inline flatbuffers::Offset<flatbuffers::String> build<std::string>(FlatBufferBuilder& builder, const std::string& value);
 {{~ for scope in context.scopes ~}}
 {{~ for table in scope.tables ~}}
 template <>
@@ -385,7 +396,7 @@ public:
 
 {{~ if (table.fields | array.size) > 0 ~}}
     {{ table.name }}({{ for field in table.fields }}{{ field | @cpp_decorate_const_ref }} {{ field.name }}{{ if !for.last }}, {{end }}{{ end }})
-        : {{ for field in table.fields }}{{ field.name }}({{ field.name }}){{ if !for.last }}, {{ end }}{{ end }}
+        : {{ for field in table.fields }}{{ field.name }}({{ field | @cpp_member_initializer }}){{ if !for.last }}, {{ end }}{{ end }}
     { }
 {{~ end ~}}
 
@@ -465,9 +476,9 @@ typename FlatBufferOffset<T>::type build(FlatBufferBuilder& builder, const T& va
 }
 
 template <> 
-flatbuffers::Offset<flatbuffers::String> build<std::string>(FlatBufferBuilder& builder, const std::string& value)
+inline flatbuffers::Offset<flatbuffers::String> build<std::string>(FlatBufferBuilder& builder, const std::string& value)
 {
-    return builder.CreateString(flatbuffers::option::encode(value));
+    return builder.CreateString(flatbuffers::option::encode(std::string_view(value)));
 }
 
 {{~ for scope in context.scopes ~}}
