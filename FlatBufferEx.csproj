@@ -12,8 +12,11 @@
 
   <ItemGroup>
     <Compile Remove="FlatBuffer\**" />
+    <Compile Remove="output\**" />
     <EmbeddedResource Remove="FlatBuffer\**" />
+    <EmbeddedResource Remove="output\**" />
     <None Remove="FlatBuffer\**" />
+    <None Remove="output\**" />
   </ItemGroup>
 
   <ItemGroup>
