@@ -18,52 +18,20 @@ namespace FlatBufferEx.Services
         }
 
         /// <summary>
-        /// Renders a template for raw FlatBuffer table content
+        /// Renders the raw FlatBuffer schema containing every enum, nullable wrapper and table
         /// </summary>
-        public async Task<string> RenderTableTemplateAsync(Table table, string language)
+        public async Task<string> RenderRawTemplateAsync(Context context, string language)
         {
-            var template = await GetTemplateAsync("Template/raw.table.txt");
-            var scribanEx = new ScribanEx();
-            scribanEx.Add("table", table);
-            scribanEx.Add("lang", language);
-            var context = new TemplateContext();
-            context.PushGlobal(scribanEx);
-
-            return await template.RenderAsync(context);
-        }
-
-        /// <summary>
-        /// Renders a template for raw FlatBuffer enum content
-        /// </summary>
-        public async Task<string> RenderEnumTemplateAsync(Model.Enum enumModel, string language)
-        {
-            var template = await GetTemplateAsync("Template/raw.enum.txt");
+            var template = await GetTemplateAsync("Template/raw.txt");
             var scribanEx = new ScribanEx
             {
-                ["enum"] = enumModel,
+                ["context"] = context,
                 ["lang"] = language
             };
-            var context = new TemplateContext();
-            context.PushGlobal(scribanEx);
+            var ctx = new TemplateContext();
+            ctx.PushGlobal(scribanEx);
 
-            return await template.RenderAsync(context);
-        }
-
-        /// <summary>
-        /// Renders a template for nullable field content
-        /// </summary>
-        public async Task<string> RenderNullableTemplateAsync(Field field, string language)
-        {
-            var template = await GetTemplateAsync("Template/nullable.txt");
-            var scribanEx = new ScribanEx
-            {
-                ["field"] = field,
-                ["lang"] = language
-            };
-            var context = new TemplateContext();
-            context.PushGlobal(scribanEx);
-
-            return await template.RenderAsync(context);
+            return await template.RenderAsync(ctx);
         }
 
         /// <summary>

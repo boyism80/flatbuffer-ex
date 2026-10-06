@@ -1,0 +1,75 @@
+{{~
+func mapped_kwd(value)
+    ret to_mapped_kwd(lang, value)
+end
+
+func generate_type(field)
+    if field.type == 'array'
+        ret '[' + generate_type(field.array_element) + ']'
+    end
+
+    $ns = field.fixed_namespace
+    if ($ns | array.size) > 0
+        $ns = $ns | array.add 'raw'
+    end
+
+    $result = $ns | array.add field.type | array.each @mapped_kwd | array.join '.'
+
+    if field.is_nullable
+        if field.is_custom_class
+
+        else if field.type == 'string'
+
+        else
+            $result = 'nullable.' + (['nullable'] | array.concat field.fixed_namespace | array.add field.type | array.each @mapped_kwd | array.join '_' | string.downcase)
+        end
+    end
+    ret $result
+end
+
+func nullable_name(field)
+    ret 'nullable_' + (field.fixed_namespace | array.add field.type | array.join '_' | string.downcase)
+end
+~}}
+{{~ for scope in context.scopes ~}}
+{{~ if (scope.enums | array.size) > 0 ~}}
+namespace {{ scope.namespace | array.add 'raw' | array.each @mapped_kwd | array.join '.' }};
+
+{{~ for enum in scope.enums ~}}
+enum {{ enum.name }} : {{ enum.type }}
+{
+{{~ for value in enum.values ~}}
+    {{ value }}{{ if !for.last }},{{ end }}
+{{~ end ~}}
+}
+
+{{~ end ~}}
+{{~ end ~}}
+{{~ end ~}}
+namespace nullable;
+
+{{~ nullable_names = [] ~}}
+{{~ for field in context.nullable_fields ~}}
+{{~ name = field | nullable_name ~}}
+{{~ if !(nullable_names | array.contains name) ~}}
+{{~ nullable_names = nullable_names | array.add name ~}}
+table {{ name }} {
+    value: {{ field.fixed_raw_namespace | array.add field.type | array.each @mapped_kwd | array.join '.' }};
+}
+
+{{~ end ~}}
+{{~ end ~}}
+{{~ for scope in context.scopes ~}}
+{{~ if (scope.tables | array.size) > 0 ~}}
+namespace {{ scope.namespace | array.add 'raw' | array.each @mapped_kwd | array.join '.' }};
+
+{{~ for table in scope.tables ~}}
+table {{ table.name }} {
+{{~ for field in table.fields ~}}
+    {{ field.name }}: {{ field | generate_type }};
+{{~ end ~}}
+}
+
+{{~ end ~}}
+{{~ end ~}}
+{{~ end ~}}

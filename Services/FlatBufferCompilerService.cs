@@ -46,74 +46,63 @@ namespace FlatBufferEx.Services
         }
 
         /// <summary>
-        /// Compiles FlatBuffer schema files for the target language
+        /// Compiles the raw FlatBuffer schema file into a single source file for the target language
         /// </summary>
-        public async Task<bool> CompileAsync(string language, IEnumerable<string> inputFiles, string outputPath, string includePath, string compilerPath)
+        public async Task<bool> CompileAsync(string language, string inputFile, string outputPath, string compilerPath)
         {
             var environment = GetCompilerEnvironment(language);
-            var inputFileList = inputFiles.ToList();
 
-            if (!inputFileList.Any())
-            {
-                throw new ArgumentException("No input files specified", nameof(inputFiles));
-            }
-
-            // Prepare output directory
             _fileService.DeleteDirectory(outputPath);
             _fileService.CreateDirectory(outputPath);
 
-            // Split files into batches to avoid Windows command line length limit (~8,191 characters)
-            const int maxCommandLineLength = 7000; // Leave some margin for safety
-            var batches = SplitIntoBatches(inputFileList, outputPath, includePath, environment, maxCommandLineLength);
+            // flatc emits one C# file per type, and --gen-onefile puts every type under the last namespace of the schema,
+            // so C# files go to a split directory first and are merged below. C++ already emits one header per schema.
+            var flatcOutputPath = language == "c#" ? _fileService.CombinePath(outputPath, "split") : outputPath;
+            var arguments = $"--{environment} -o \"{flatcOutputPath}\" \"{inputFile}\"";
 
-            Console.WriteLine($"  Compiling {inputFileList.Count} files in {batches.Count} batch(es)...");
-
-            // Compile each batch
-            for (int i = 0; i < batches.Count; i++)
+            var process = new Process
             {
-                var batch = batches[i];
-                Console.WriteLine($"  Batch {i + 1}/{batches.Count}: {batch.Count} files");
-
-                var arguments = BuildCompilerArguments(environment, batch, outputPath, includePath);
-
-                // Execute compiler
-                var process = new Process
+                StartInfo = new ProcessStartInfo
                 {
-                    StartInfo = new ProcessStartInfo
-                    {
-                        FileName = "cmd.exe",
-                        Arguments = $"/c flatc.exe {arguments}",
-                        WorkingDirectory = compilerPath,
-                        CreateNoWindow = true,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false
-                    }
-                };
-
-                process.Start();
-
-                // Read output
-                var output = await process.StandardOutput.ReadToEndAsync();
-                var error = await process.StandardError.ReadToEndAsync();
-
-                await process.WaitForExitAsync();
-
-                // Log output
-                if (!string.IsNullOrWhiteSpace(output))
-                {
-                    Console.WriteLine($"Compiler output: {output}");
+                    FileName = "cmd.exe",
+                    Arguments = $"/c flatc.exe {arguments}",
+                    WorkingDirectory = compilerPath,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false
                 }
+            };
 
-                if (!string.IsNullOrWhiteSpace(error))
-                {
-                    Console.Error.WriteLine($"Compiler error: {error}");
-                }
+            process.Start();
 
-                if (process.ExitCode != 0)
-                {
-                    return false;
-                }
+            var output = await process.StandardOutput.ReadToEndAsync();
+            var error = await process.StandardError.ReadToEndAsync();
+
+            await process.WaitForExitAsync();
+
+            if (!string.IsNullOrWhiteSpace(output))
+            {
+                Console.WriteLine($"Compiler output: {output}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(error))
+            {
+                Console.Error.WriteLine($"Compiler error: {error}");
+            }
+
+            if (process.ExitCode != 0)
+            {
+                return false;
+            }
+
+            if (language == "c#")
+            {
+                // Each flatc C# file wraps its type in its own namespace block, so plain concatenation stays valid
+                var files = Directory.GetFiles(flatcOutputPath, "*.cs", SearchOption.AllDirectories).OrderBy(x => x, StringComparer.Ordinal);
+                var merged = string.Join(Environment.NewLine, files.Select(File.ReadAllText));
+                await _fileService.WriteAllTextAsync(_fileService.CombinePath(outputPath, "protocol_raw_generated.cs"), merged);
+                _fileService.DeleteDirectory(flatcOutputPath);
             }
 
             return true;
@@ -132,89 +121,6 @@ namespace FlatBufferEx.Services
                 "c#" => "csharp",
                 _ => throw new ArgumentException($"Unsupported language: {language}")
             };
-        }
-
-        /// <summary>
-        /// Splits input files into batches to avoid Windows command line length limit
-        /// </summary>
-        /// <param name="inputFiles">All input files</param>
-        /// <param name="outputPath">Output path</param>
-        /// <param name="includePath">Include path</param>
-        /// <param name="environment">Compiler environment</param>
-        /// <param name="maxLength">Maximum command line length</param>
-        /// <returns>List of file batches</returns>
-        private static List<List<string>> SplitIntoBatches(IList<string> inputFiles, string outputPath, string includePath, string environment, int maxLength)
-        {
-            var batches = new List<List<string>>();
-            var currentBatch = new List<string>();
-            var baseArgsLength = CalculateBaseArgsLength(environment, outputPath, includePath);
-
-            foreach (var file in inputFiles)
-            {
-                var fileArgLength = $"\"{file}\"".Length + 1; // +1 for space
-                var currentBatchLength = baseArgsLength + currentBatch.Sum(f => $"\"{f}\"".Length + 1);
-
-                if (currentBatchLength + fileArgLength > maxLength && currentBatch.Count > 0)
-                {
-                    batches.Add(currentBatch);
-                    currentBatch = new List<string>();
-                }
-
-                currentBatch.Add(file);
-            }
-
-            if (currentBatch.Count > 0)
-            {
-                batches.Add(currentBatch);
-            }
-
-            return batches;
-        }
-
-        /// <summary>
-        /// Calculates the length of base compiler arguments (without input files)
-        /// </summary>
-        /// <param name="environment">Compiler environment</param>
-        /// <param name="outputPath">Output path</param>
-        /// <param name="includePath">Include path</param>
-        /// <returns>Length of base arguments</returns>
-        private static int CalculateBaseArgsLength(string environment, string outputPath, string includePath)
-        {
-            var length = $"--{environment} -o \"{outputPath}\"".Length + 1; // +1 for space before file args
-
-            if (!string.IsNullOrWhiteSpace(includePath))
-            {
-                length += $" -I \"{includePath}\"".Length;
-            }
-
-            return length;
-        }
-
-        /// <summary>
-        /// Builds compiler arguments
-        /// </summary>
-        /// <param name="environment">Compiler environment</param>
-        /// <param name="inputFiles">Input files</param>
-        /// <param name="outputPath">Output path</param>
-        /// <param name="includePath">Include path</param>
-        /// <returns>Compiler arguments string</returns>
-        private static string BuildCompilerArguments(string environment, IList<string> inputFiles, string outputPath, string includePath)
-        {
-            var args = new List<string>
-            {
-                $"--{environment}",
-                $"-o \"{outputPath}\""
-            };
-
-            if (!string.IsNullOrWhiteSpace(includePath))
-            {
-                args.Add($"-I \"{includePath}\"");
-            }
-
-            // Add input files
-            args.AddRange(inputFiles.Select(f => $"\"{f}\""));
-
-            return string.Join(" ", args);
         }
     }
 }

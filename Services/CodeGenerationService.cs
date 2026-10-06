@@ -17,53 +17,19 @@ namespace FlatBufferEx.Services
         }
 
         /// <summary>
-        /// Generates raw FlatBuffer files from context
+        /// Generates a single raw FlatBuffer schema file containing every scope, so flatc emits one file per language
         /// </summary>
-        public async Task<IEnumerable<string>> GenerateRawFlatBufferFilesAsync(Context context, string outputPath, string language)
+        /// <returns>Full path of the generated schema file</returns>
+        public async Task<string> GenerateRawSchemaFileAsync(Context context, string outputPath, string language)
         {
-            var generatedFiles = new List<string>();
-
-            // Initialize output directory
             _fileService.DeleteDirectory(outputPath);
             _fileService.CreateDirectory(outputPath);
 
-            // Generate .fbs files for tables in each scope
-            foreach (var scope in context.Scopes)
-            {
-                foreach (var table in scope.Tables)
-                {
-                    var contents = await _templateService.RenderTableTemplateAsync(table, language);
-                    var fileName = $"{string.Join('.', scope.Namespace)}.{table.Name.ToLower()}.fbs";
-                    var filePath = _fileService.CombinePath(outputPath, fileName);
-                    
-                    await _fileService.WriteAllTextAsync(filePath, contents);
-                    generatedFiles.Add(_fileService.GetFullPath(filePath));
-                }
+            var contents = await _templateService.RenderRawTemplateAsync(context, language);
+            var filePath = _fileService.CombinePath(outputPath, "protocol_raw.fbs");
+            await _fileService.WriteAllTextAsync(filePath, contents);
 
-                // Generate .fbs files for enums in each scope
-                foreach (var enumModel in scope.Enums)
-                {
-                    var contents = await _templateService.RenderEnumTemplateAsync(enumModel, language);
-                    var fileName = $"{string.Join('.', scope.Namespace)}.{enumModel.Name.ToLower()}.fbs";
-                    var filePath = _fileService.CombinePath(outputPath, fileName);
-                    
-                    await _fileService.WriteAllTextAsync(filePath, contents);
-                    generatedFiles.Add(_fileService.GetFullPath(filePath));
-                }
-            }
-
-            // Generate .fbs files for nullable fields
-            foreach (var nullableField in context.NullableFields)
-            {
-                var contents = await _templateService.RenderNullableTemplateAsync(nullableField, language);
-                var fileName = $"nullable_{string.Join('_', nullableField.FixedNamespace.Concat(new[] { nullableField.Type }))}.fbs".ToLower();
-                var filePath = _fileService.CombinePath(outputPath, fileName);
-                
-                await _fileService.WriteAllTextAsync(filePath, contents);
-                generatedFiles.Add(_fileService.GetFullPath(filePath));
-            }
-
-            return generatedFiles;
+            return _fileService.GetFullPath(filePath);
         }
 
         /// <summary>

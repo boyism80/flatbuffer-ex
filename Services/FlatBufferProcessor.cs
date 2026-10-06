@@ -66,21 +66,13 @@ namespace FlatBufferEx.Services
 
             try
             {
-                // Generate raw FlatBuffer files
-                Console.WriteLine($"  Generating raw FlatBuffer files...");
-                var rawFiles = await _codeGenerationService.GenerateRawFlatBufferFilesAsync(context, tempRawPath, language);
-                var rawFilesList = rawFiles.ToList();
-                Console.WriteLine($"  Generated {rawFilesList.Count} raw files");
+                Console.WriteLine($"  Generating raw FlatBuffer schema...");
+                var rawSchemaFile = await _codeGenerationService.GenerateRawSchemaFileAsync(context, tempRawPath, language);
+                Console.WriteLine($"  Generated: {rawSchemaFile}");
 
-                // Compile with FlatBuffer compiler
                 Console.WriteLine($"  Compiling with FlatBuffer compiler...");
                 var compilerOutputPath = _fileService.CombinePath(config.GetFullOutputPath(), "raw", language);
-                var compileSuccess = await _compilerService.CompileAsync(
-                    language,
-                    rawFilesList,
-                    compilerOutputPath,
-                    _fileService.GetFullPath(tempRawPath),
-                    config.CompilerDirectory);
+                var compileSuccess = await _compilerService.CompileAsync(language, rawSchemaFile, compilerOutputPath, config.CompilerDirectory);
 
                 if (!compileSuccess)
                 {

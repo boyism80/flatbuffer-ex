@@ -211,8 +211,7 @@ FlatBufferEx uses a service-based architecture with dependency injection:
 FlatBufferEx uses Scriban templates for flexible code generation:
 - `Template/c#.txt`: C# code generation template
 - `Template/cpp.txt`: C++ code generation template
-- `Template/raw.table.txt`: Raw table generation template
-- `Template/raw.enum.txt`: Raw enum generation template
+- `Template/raw.txt`: Raw schema template; renders every enum, nullable wrapper and table into one `protocol_raw.fbs`, which flatc compiles into a single `protocol_raw_generated.h`; for C#, flatc's per-type files are merged into a single `protocol_raw_generated.cs`
 
 ## Supported Types
 

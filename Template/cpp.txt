@@ -208,14 +208,7 @@ end
 #include <optional>
 #include <mutex>
 #include <memory>
-{{~ for scope in context.scopes ~}}
-{{~ for enum in scope.enums ~}}
-#include <{{ if include_path != '' }}{{ include_path }}/{{ end }}{{ scope.namespace | array.join '.' | string.downcase }}.{{ enum.name | string.downcase }}_generated.h>
-{{~ end ~}}
-{{~ for table in scope.tables ~}}
-#include <{{ if include_path != '' }}{{ include_path }}/{{ end }}{{ scope.namespace | array.join '.' | string.downcase }}.{{ table.name | string.downcase }}_generated.h>
-{{~ end ~}}
-{{~ end ~}}
+#include <{{ if include_path != '' }}{{ include_path }}/{{ end }}protocol_raw_generated.h>
 
 {{~ for scope in context.scopes ~}}
 namespace {{ scope.namespace | array.join '::' }}
@@ -424,7 +417,7 @@ public:
 
     static {{ table.name }} Deserialize(const uint8_t* bytes)
     {
-        auto raw = {{ scope.namespace | array.add 'raw' | array.add 'Get' + table.name | array.join '::' }}(bytes);
+        auto raw = flatbuffers::GetRoot<{{ scope.namespace | array.add 'raw' | array.add table.name | array.join '::' }}>(bytes);
         return {{ table.name }}(*raw);
     }
 };
