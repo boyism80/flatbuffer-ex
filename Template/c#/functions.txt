@@ -1,0 +1,106 @@
+{{~
+func cs_primitive(type)
+    case type
+        when "byte"
+            ret "sbyte"
+        when "ubyte"
+            ret "byte"
+        else
+            ret type
+    end
+end
+
+func cs_type(field)
+    if field.is_array
+        $result = 'List<' + cs_type(field.array_element) + '>'
+    else if field.is_table || field.is_enum
+        $result = full_name(field)
+    else
+        $result = cs_primitive(field.type)
+    end
+
+    if field.is_nullable_scalar
+        $result = $result + '?'
+    end
+
+    ret $result
+end
+
+func cs_read_field(raw, field)
+    $accessor = raw
+    if field.name
+        $accessor = raw + '.' + upper_camel(field.name)
+    end
+
+    if field.is_array
+        ret 'Enumerable.Range(0, ' + $accessor + 'Length).Select(i => ' + $accessor + '(i)).Select(x => ' + cs_read_field('x', field.array_element) + ').ToList()'
+    else if field.is_table
+        $value = 'new ' + cs_type(field) + '(' + $accessor + '.Value)'
+    else if field.is_nullable_scalar
+        $value = '(' + cs_type(field) + ')' + $accessor + '.Value.Value'
+    else if field.is_enum
+        $value = '(' + cs_type(field) + ')' + $accessor
+    else
+        $value = $accessor
+    end
+
+    if field.is_nullable && field.type != 'string'
+        ret $accessor + ' != null ? ' + $value + ' : null'
+    else
+        ret $value
+    end
+end
+
+func cs_default_initializer(field)
+    $result = ''
+    if field.init
+        $result = field.init
+    else if field.is_nullable
+        $result = 'null'
+    else if field.is_table
+        $result = 'new ' + cs_type(field) + '()'
+    else
+        case field.type
+        when "string"
+            $result = "string.Empty"
+        when "byte", "ubyte", "short", "ushort", "int", "uint"
+            $result = "0"
+        when "long", "ulong"
+            $result = "0L"
+        when "float"
+            $result = "0.0f"
+        when "double"
+            $result = "0.0"
+        when "bool"
+            $result = "false"
+        when "array"
+            $result = "new " + cs_type(field) + '()'
+        end
+    end
+
+    if $result != ''
+        $result = ' = ' + $result + ';'
+    end
+
+    ret $result
+end
+
+func cs_scalar_size(field)
+    if field.is_nullable
+        ret 4
+    end
+
+    case field.type
+    when 'byte', 'ubyte', 'bool'
+        ret 1
+    when 'short', 'ushort'
+        ret 2
+    when 'int', 'uint', 'float'
+        ret 4
+    when 'long', 'ulong', 'double'
+        ret 8
+    end
+
+    ret 4
+end
+~}}

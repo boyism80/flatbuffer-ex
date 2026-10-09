@@ -1,0 +1,120 @@
+{{~
+func cpp_primitive(type)
+    case type
+        when "string"
+            ret "std::string"
+        when "byte"
+            ret "int8_t"
+        when "ubyte"
+            ret "uint8_t"
+        when "short"
+            ret "int16_t"
+        when "ushort"
+            ret "uint16_t"
+        when "int"
+            ret "int32_t"
+        when "uint"
+            ret "uint32_t"
+        when "long"
+            ret "int64_t"
+        when "ulong"
+            ret "uint64_t"
+        else
+            ret type
+    end
+end
+
+func cpp_type(field)
+    if field.is_array
+        $result = 'std::vector<' + cpp_type(field.array_element) + '>'
+    else if field.is_table || field.is_enum
+        $result = full_name(field)
+    else
+        $result = cpp_primitive(field.type)
+    end
+
+    if field.is_nullable
+        $result = 'std::optional<' + $result + '>'
+    end
+
+    ret $result
+end
+
+func cpp_parameter_type(field)
+    $result = cpp_type(field)
+
+    if field.is_nullable || field.is_table
+        $result = 'const ' + $result + '&'
+    else if field.type == 'string'
+        $result = 'std::string_view'
+    end
+
+    ret $result
+end
+
+func cpp_read_field(raw, field)
+    $accessor = raw + '.' + name(field) + '()'
+    $value = $accessor
+    if field.is_nullable_scalar
+        $value = $accessor + '->value()'
+    end
+
+    if field.type == 'string'
+        $value = 'flatbuffers::option::decode(' + $value + '->c_str())'
+    else if field.is_enum
+        $value = '(' + full_name(field) + ')' + $value
+    else if field.is_table
+        $value = '*' + $accessor
+    else if field.is_array
+        $value = 'unpack<' + cpp_type(field.array_element) + '>(' + $accessor + ')'
+    end
+
+    if field.is_nullable
+        ret $accessor + ' != nullptr ? ' + $value + ' : ' + cpp_type(field) + '()'
+    else
+        ret $value
+    end
+end
+
+func cpp_default_initializer(field)
+    $result = ''
+    if field.init
+        $result = field.init
+    else if field.is_nullable
+        $result = 'std::nullopt'
+    else
+        case field.type
+        when "string"
+            $result = ''
+        when "byte", "ubyte", "short", "ushort", "int", "uint"
+            $result = "0"
+        when "long"
+            $result = "0LL"
+        when "ulong"
+            $result = "0ULL"
+        when "float"
+            $result = "0.0f"
+        when "double"
+            $result = "0.0"
+        when "bool"
+            $result = "false"
+        when "array"
+            $result = '{}'
+        end
+    end
+
+    if $result != ''
+        $result = ' = ' + $result
+    end
+
+    ret $result
+end
+
+func cpp_member_initializer(field)
+    if field.type == 'string' && !field.is_nullable
+        ret 'std::string(' + name(field) + ')'
+    else
+        ret name(field)
+    end
+end
+~}}

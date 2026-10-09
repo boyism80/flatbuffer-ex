@@ -1,0 +1,79 @@
+class option
+{
+public:
+    using encoding_func_type = std::function<std::string(std::string_view)>;
+
+private:
+    encoding_func_type encoding_func;
+    encoding_func_type decoding_func;
+
+private:
+    option() = default;
+
+public:
+    ~option() = default;
+
+private:
+    static option& get()
+    {
+        static std::once_flag flag;
+        static std::unique_ptr<option> ist;
+
+        std::call_once(flag, []
+        {
+            ist = std::unique_ptr<option>(new option());
+        });
+        return *ist;
+    }
+
+public:
+    static void encoding(const encoding_func_type& fn)
+    {
+        auto& ist = get();
+        ist.encoding_func = fn;
+    }
+
+public:
+    static void decoding(const encoding_func_type& fn)
+    {
+        auto& ist = get();
+        ist.decoding_func = fn;
+    }
+
+public:
+    static std::string encode(std::string_view value)
+    {
+        auto& ist = get();
+        if (ist.encoding_func)
+        {
+            return ist.encoding_func(value);
+        }
+        else
+        {
+            return std::string(value);
+        }
+    }
+
+public:
+    static std::string decode(std::string_view value)
+    {
+        auto& ist = get();
+        if (ist.decoding_func)
+        {
+            return ist.decoding_func(value);
+        }
+        else
+        {
+            return std::string(value);
+        }
+    }
+};
+
+template<typename>   constexpr bool is_optional_impl = false;
+template<typename T> constexpr bool is_optional_impl<std::optional<T>> = true;
+template<>           constexpr bool is_optional_impl<std::nullopt_t> = true;
+template<typename T> constexpr bool is_optional = is_optional_impl<std::decay_t<T>>;
+
+template<typename>   constexpr bool is_vector_impl = false;
+template<typename T> constexpr bool is_vector_impl<std::vector<T>> = true;
+template<typename T> constexpr bool is_vector = is_vector_impl<std::decay_t<T>>;

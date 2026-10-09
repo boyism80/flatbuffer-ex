@@ -1,0 +1,42 @@
+template <typename T> inline static
+std::vector<T> unpack(const flatbuffers::Vector<typename FlatBufferOffset<T>::type> *value)
+{
+    auto result = std::vector<T>();
+    for (int i = 0; i < value->size(); i++)
+    {
+        if constexpr (is_optional<T>)
+        {
+            if (value->Get(i) == nullptr)
+            {
+                result.push_back(std::nullopt);
+            }
+            else if constexpr (std::is_fundamental_v<typename T::value_type>)
+            {
+                result.push_back(value->Get(i)->value());
+            }
+            else
+            {
+                result.push_back(*value->Get(i));
+            }
+        }
+        else
+        {
+            if constexpr (std::is_fundamental_v<T>)
+            {
+                result.push_back(value->Get(i));
+            }
+            else if constexpr (std::is_same_v<T, std::string>)
+            {
+                result.push_back(flatbuffers::option::decode(value->Get(i)->c_str()));
+            }
+            else
+            {
+                if (value->Get(i) == nullptr)
+                    continue;
+
+                result.push_back(*value->Get(i));
+            }
+        }
+    }
+    return result;
+}

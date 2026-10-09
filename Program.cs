@@ -1,137 +1,111 @@
-using FlatBufferEx;
-using FlatBufferEx.Configuration;
-using FlatBufferEx.Services;
-using Microsoft.Extensions.DependencyInjection;
-using NDesk.Options;
+using FlatBufferEx.Model;
+using Scriban;
+using Scriban.Parsing;
+using Scriban.Runtime;
 
-namespace FlatBufferExample
+namespace FlatBufferEx
 {
-    /// <summary>
-    /// Service enumeration (extensible)
-    /// </summary>
-    public enum Service : uint
-    { }
-
-    /// <summary>
-    /// Main program class for FlatBuffer extension tool
-    /// Parses FlatBuffer schema files (.fbs) and generates code for various languages.
-    /// </summary>
-    class Program
+    public static class Program
     {
-        /// <summary>
-        /// Application entry point
-        /// Parses command line arguments and executes FlatBuffer compiler to generate code.
-        /// </summary>
-        /// <param name="args">Command line arguments</param>
-        static async Task<int> Main(string[] args)
+        public static async Task<int> Main(string[] args)
         {
+            var options = Options.Parse(args);
+            if (options == null)
+                return 1;
+
             try
             {
-                var config = ParseCommandLineArguments(args);
-                if (config == null)
-                {
-                    ShowUsage();
-                    return 1;
-                }
-
-                using var serviceProvider = CreateServiceProvider();
-                var processor = serviceProvider.GetRequiredService<FlatBufferProcessor>();
-
-                await processor.ProcessAsync(config);
-
+                await Generate(options);
                 Console.WriteLine("FlatBuffer code generation completed successfully.");
                 return 0;
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                Console.Error.WriteLine($"Error: {ex.Message}");
-                Console.Error.WriteLine($"Stack trace: {ex.StackTrace}");
+                Console.Error.WriteLine($"Error: {e.Message}");
+                Console.Error.WriteLine($"Stack trace: {e.StackTrace}");
                 return 1;
             }
         }
 
-        /// <summary>
-        /// Parses command line arguments and returns configuration
-        /// </summary>
-        /// <param name="args">Command line arguments</param>
-        /// <returns>Configuration object or null if parsing failed</returns>
-        private static AppConfiguration ParseCommandLineArguments(string[] args)
+        private static async Task Generate(Options options)
         {
-            var config = new AppConfiguration();
-            var showHelp = false;
+            var outputPath = Path.GetFullPath(options.OutputPath);
+            if (Directory.Exists(outputPath))
+                Directory.Delete(outputPath, true);
+            Directory.CreateDirectory(outputPath);
 
-            var options = new OptionSet
-            {
-                { "p|path=", "input directory containing .fbs files", v => config.InputPath = v },
-                { "l|lang=", "target languages (e.g., \"c++|c#\")", v => config.Languages = v },
-                { "o|output=", "output directory for generated code", v => config.OutputPath = v },
-                { "i|include=", "include directory path", v => config.IncludePath = v },
-                { "h|help", "show this help message", v => showHelp = v != null },
-            };
+            await Flatc.Install();
 
+            Console.WriteLine($"Parsing schema files from: {options.InputPath}");
+            var context = Parser.Parse(options.InputPath);
+            Console.WriteLine($"Found {context.Scopes.Count} scopes with {context.Scopes.Sum(s => s.Tables.Count)} tables and {context.Scopes.Sum(s => s.Enums.Count)} enums");
+
+            var workPath = Directory.CreateTempSubdirectory("flatbuffer-ex-").FullName;
             try
             {
-                options.Parse(args);
-
-                if (showHelp)
+                foreach (var language in options.Languages)
                 {
-                    ShowUsage(options);
-                    return null;
-                }
+                    Console.WriteLine($"Generating code for language: {language.Name}");
 
-                if (!config.IsValid(out var validationErrors))
-                {
-                    Console.Error.WriteLine("Configuration validation failed:");
-                    foreach (var error in validationErrors)
-                    {
-                        Console.Error.WriteLine($"  - {error}");
-                    }
-                    return null;
-                }
+                    // The raw schema is the flatc input. Its namespaces depend on the target language's keywords, so it is
+                    // rendered again for every language.
+                    var schema = Path.Combine(workPath, language.FlatcOption, "protocol_raw.fbs");
+                    Directory.CreateDirectory(Path.GetDirectoryName(schema));
+                    await File.WriteAllTextAsync(schema, Render("raw.txt", context, options.IncludePath, Naming.Schema(language)));
+                    await Flatc.Compile(language, schema, Path.Combine(outputPath, "raw", language.Name), context.Scopes.Select(x => x.Namespace));
 
-                return config;
+                    var languageOutputPath = Path.Combine(outputPath, language.Name);
+                    Directory.CreateDirectory(languageOutputPath);
+                    var file = Path.Combine(languageOutputPath, "protocol" + language.Extension);
+                    await File.WriteAllTextAsync(file, Render(language.Template, context, options.IncludePath, Naming.Code(language)));
+                    Console.WriteLine($"  Generated: {file}");
+                }
             }
-            catch (OptionException ex)
+            finally
             {
-                Console.Error.WriteLine($"Command line parsing error: {ex.Message}");
-                return null;
+                Directory.Delete(workPath, true);
             }
         }
-
-        /// <summary>
-        /// Creates and configures service dependencies using ASP.NET Core DI
-        /// </summary>
-        /// <returns>Service provider with all services registered</returns>
-        private static ServiceProvider CreateServiceProvider()
+        private static string Render(string templateName, Context context, string includePath, Naming naming)
         {
-            var services = new ServiceCollection();
+            var path = Path.Combine(Options.TemplateDirectory, templateName);
+            var template = Template.Parse(File.ReadAllText(path), path);
+            if (template.HasErrors)
+                throw new InvalidOperationException($"Template parsing errors in {path}:{Environment.NewLine}{string.Join(Environment.NewLine, template.Messages)}");
 
-            // Register services as singletons
-            services.AddSingleton<FileService>();
-            services.AddSingleton<TemplateService>();
-            services.AddSingleton<FlatBufferCompilerService>();
-            services.AddSingleton<CodeGenerationService>();
-            services.AddSingleton<FlatBufferProcessor>();
+            var globals = new ScriptObject
+            {
+                ["context"] = context,
+                ["include_path"] = includePath,
+            };
+            globals.Import("name", new Func<object, string>(naming.Name));
+            globals.Import("full_name", new Func<object, string>(naming.FullName));
+            globals.Import("raw_name", new Func<object, string>(naming.RawName));
+            globals.Import("ns", new Func<Scope, string>(naming.Namespace));
+            globals.Import("raw_ns", new Func<Scope, string>(naming.RawNamespace));
+            globals.Import("upper_camel", new Func<string, string>(UpperCamel));
 
-            return services.BuildServiceProvider();
+            var templateContext = new TemplateContext
+            {
+                TemplateLoader = new TemplateLoader(),
+                LoopLimit = 0,
+            };
+            templateContext.PushGlobal(globals);
+            return template.Render(templateContext);
+        }
+        private static string UpperCamel(string value)
+        {
+            if (value == null)
+                return null;
+
+            return string.Concat(value.ToLower().Split('_', StringSplitOptions.RemoveEmptyEntries).Select(x => char.ToUpperInvariant(x[0]) + x.Substring(1)));
         }
 
-        /// <summary>
-        /// Shows usage information
-        /// </summary>
-        /// <param name="options">Option set for detailed help</param>
-        private static void ShowUsage(OptionSet options = null)
+        private sealed class TemplateLoader : ITemplateLoader
         {
-            Console.WriteLine("FlatBufferEx - Enhanced FlatBuffer code generator");
-            Console.WriteLine();
-            Console.WriteLine("Usage: dotnet run -- [OPTIONS]");
-            Console.WriteLine();
-            Console.WriteLine("Options:");
-            options?.WriteOptionDescriptions(Console.Out);
-            Console.WriteLine();
-            Console.WriteLine("Examples:");
-            Console.WriteLine("  dotnet run -- --path ./schemas --lang \"c#\" --output ./generated");
-            Console.WriteLine("  dotnet run -- --path ./schemas --lang \"c++|c#\" --output ./generated --include ./common");
+            public string GetPath(TemplateContext context, SourceSpan callerSpan, string templateName) => Path.Combine(Options.TemplateDirectory, templateName);
+            public string Load(TemplateContext context, SourceSpan callerSpan, string templatePath) => File.ReadAllText(templatePath);
+            public ValueTask<string> LoadAsync(TemplateContext context, SourceSpan callerSpan, string templatePath) => new(File.ReadAllText(templatePath));
         }
     }
 }

@@ -14,8 +14,8 @@ A powerful extension tool for Google FlatBuffers that simplifies schema parsing 
 ## Installation
 
 ### Prerequisites
-- .NET 6.0 or later
-- FlatBuffers compiler (automatically downloaded in release mode)
+- .NET 8.0 or later
+- FlatBuffers compiler (downloaded on first run and cached in `%LOCALAPPDATA%\FlatBufferEx\flatc-<version>`)
 
 ### Build from Source
 ```bash
@@ -189,29 +189,35 @@ The pool configuration:
 
 ## Architecture
 
-### Core Components
-- **Parser**: Parses `.fbs` schema files and extracts structure information
-- **Services**: Service-based architecture with dependency injection
-  - **IFileService**: File system operations abstraction
-  - **ITemplateService**: Template rendering operations
-  - **IFlatBufferCompilerService**: FlatBuffer compiler management
-  - **ICodeGenerationService**: Code generation orchestration
-- **Model**: Represents parsed schema elements (tables, fields, enums)
-- **Configuration**: Centralized configuration management with validation
-- **Templates**: Scriban templates for code generation
-
-### Service Architecture
-FlatBufferEx uses a service-based architecture with dependency injection:
-- **Separation of Concerns**: Each service handles a specific responsibility
-- **Testability**: Services can be easily mocked for unit testing
-- **Maintainability**: Clear interfaces make the code easier to understand and modify
-- **Error Handling**: Centralized error handling with detailed error messages
+### Components
+- `Program.cs`: Entry point and the generation flow (parse, render the raw schema, run flatc, render the language template)
+- `Options.cs`: Command line options and validation
+- `Parser.cs`: Parses `.fbs` schema files into the model
+- `Model/Model.cs`: Scopes, tables, enums and fields
+- `Language.cs`: Per-language settings (flatc option, template, extension, namespace separator, reserved word table)
+- `Naming.cs`: Writes table, enum, field and namespace names for one output (language code or raw schema)
+- `Flatc.cs`: Installs flatc into the cache and runs it; work files live in a temporary directory removed after the run
 
 ### Template System
-FlatBufferEx uses Scriban templates for flexible code generation:
-- `Template/c#.txt`: C# code generation template
-- `Template/cpp.txt`: C++ code generation template
-- `Template/raw.txt`: Raw schema template; renders every enum, nullable wrapper and table into one `protocol_raw.fbs`, which flatc compiles into a single `protocol_raw_generated.h`; for C#, flatc's per-type files are merged into a single `protocol_raw_generated.cs`
+- `Template/raw.txt`: Raw schema; renders every enum, nullable wrapper and table into one `protocol_raw.fbs`, which flatc compiles into a single `protocol_raw_generated.h`; for C#, flatc's per-type files are merged into a single `protocol_raw_generated.cs`
+- `Template/cpp/protocol.txt`: C++ code; includes `functions.txt` (template functions), `option.txt` (string encoding hook and type traits) and `unpack.txt`
+- `Template/c#/protocol.txt`: C# code; includes `functions.txt` (template functions) and `pool.txt` (builder pool)
+
+`include` paths are relative to the `Template` directory, e.g. `{{~ include 'cpp/functions.txt' ~}}`.
+
+Every template receives the same globals:
+- `context`: The parsed model
+- `include_path`: Include directory of the raw header
+- `name(x)`: Escaped name of a table, enum, enum value or field (C++ `name_`, C# `@name`)
+- `full_name(x)`: Qualified name of a table, enum or field type, e.g. `fb::protocol::internal::Item`
+- `raw_name(x)`: Qualified flatc name of a table, enum or field type, e.g. `fb::protocol::internal::raw::Item`
+- `ns(scope)` / `raw_ns(scope)`: Namespace of a scope, and its flatc namespace
+- `upper_camel`: Converts `snake_case` to `UpperCamel`
+
+Reserved words: flatc escapes identifiers itself but not namespaces. The C++ raw schema renames a reserved namespace
+segment (`class` to `class_`). A schema cannot contain C#'s `@`, so the C# raw schema keeps the name and the namespaces
+in flatc's C# output are escaped afterwards (`internal` to `@internal`). flatc does not escape reserved words used as
+table or enum names consistently, so those are not supported.
 
 ## Supported Types
 
