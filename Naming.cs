@@ -1,5 +1,4 @@
 using FlatBufferEx.Model;
-using Enum = FlatBufferEx.Model.Enum;
 
 namespace FlatBufferEx
 {
@@ -7,13 +6,13 @@ namespace FlatBufferEx
     public sealed class Naming
     {
         private readonly string _separator;
-        private readonly Func<string, string> _namespace;
+        private readonly Func<string, string> _segment;
         private readonly Func<string, string> _identifier;
 
-        private Naming(string separator, Func<string, string> ns, Func<string, string> identifier)
+        private Naming(string separator, Func<string, string> segment, Func<string, string> identifier)
         {
             _separator = separator;
-            _namespace = ns;
+            _segment = segment;
             _identifier = identifier;
         }
 
@@ -22,46 +21,10 @@ namespace FlatBufferEx
         // flatc escapes identifiers itself, so the schema only adjusts namespaces
         public static Naming Schema(Language language) => new(".", language.SchemaNamespace, x => x);
 
-        public string Name(object value)
-        {
-            return value switch
-            {
-                Table x => _identifier(x.Name),
-                Enum x => _identifier(x.Name),
-                EnumValue x => _identifier(x.Name),
-                Field x => _identifier(x.Name),
-                _ => throw new ArgumentException($"no name for {value}")
-            };
-        }
+        public string Identifier(string name) => _identifier(name);
 
-        public string Namespace(Scope scope) => string.Join(_separator, scope.Namespace.Select(_namespace));
-        public string RawNamespace(Scope scope) => string.Join(_separator, scope.RawNamespace.Select(_namespace));
+        public string Namespace(Namespace ns) => string.Join(_separator, ns.Segments.Select(_segment));
 
-        public string FullName(object value)
-        {
-            return value switch
-            {
-                Table x => Qualify(x.Scope.Namespace, x.Name),
-                Enum x => Qualify(x.Scope.Namespace, x.Name),
-                Field x => x.IsPrimitive ? x.Type : Qualify(x.TypeNamespace, x.Type),
-                _ => throw new ArgumentException($"no full name for {value}")
-            };
-        }
-
-        public string RawName(object value)
-        {
-            return value switch
-            {
-                Table x => Qualify(x.Scope.RawNamespace, x.Name),
-                Enum x => Qualify(x.Scope.RawNamespace, x.Name),
-                Field x => x.IsPrimitive ? x.Type : Qualify(x.RawTypeNamespace, x.Type),
-                _ => throw new ArgumentException($"no raw name for {value}")
-            };
-        }
-
-        private string Qualify(IEnumerable<string> ns, string name)
-        {
-            return string.Join(_separator, ns.Select(_namespace).Append(_identifier(name)));
-        }
+        public string Qualify(Namespace ns, string name) => string.Join(_separator, ns.Segments.Select(_segment).Append(_identifier(name)));
     }
 }

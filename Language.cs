@@ -2,7 +2,7 @@ namespace FlatBufferEx
 {
     public sealed class Language
     {
-        public static readonly Language Cpp = new("c++", "cpp", "cpp/protocol.txt", ".h", "::", "{0}_", true, new HashSet<string>
+        public static readonly Language Cpp = new("c++", "cpp", ".h", "::", "{0}_", true, new HashSet<string>
         {
             "alignas", "alignof", "and", "and_eq", "asm", "auto", "bitand", "bitor", "bool", "break", "case", "catch",
             "char", "char8_t", "char16_t", "char32_t", "class", "compl", "concept", "const", "consteval", "constexpr",
@@ -15,7 +15,7 @@ namespace FlatBufferEx
             "union", "unsigned", "using", "virtual", "void", "volatile", "wchar_t", "while", "xor", "xor_eq"
         });
 
-        public static readonly Language CSharp = new("c#", "csharp", "c#/protocol.txt", ".cs", ".", "@{0}", false, new HashSet<string>
+        public static readonly Language CSharp = new("c#", "csharp", ".cs", ".", "@{0}", false, new HashSet<string>
         {
             "abstract", "as", "base", "bool", "break", "byte", "case", "catch", "char", "checked", "class", "const",
             "continue", "decimal", "default", "delegate", "do", "double", "else", "enum", "event", "explicit", "extern",
@@ -34,7 +34,6 @@ namespace FlatBufferEx
 
         public string Name { get; }
         public string FlatcOption { get; }
-        public string Template { get; }
         public string Extension { get; }
         public string Separator { get; }
 
@@ -46,11 +45,10 @@ namespace FlatBufferEx
         private readonly string _escapeFormat;
         private readonly HashSet<string> _keywords;
 
-        private Language(string name, string flatcOption, string template, string extension, string separator, string escapeFormat, bool escapesNamespaceInSchema, HashSet<string> keywords)
+        private Language(string name, string flatcOption, string extension, string separator, string escapeFormat, bool escapesNamespaceInSchema, HashSet<string> keywords)
         {
             Name = name;
             FlatcOption = flatcOption;
-            Template = template;
             Extension = extension;
             Separator = separator;
             EscapesNamespaceInSchema = escapesNamespaceInSchema;

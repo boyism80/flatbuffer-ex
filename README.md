@@ -192,27 +192,26 @@ The pool configuration:
 ### Components
 - `Program.cs`: Entry point and the generation flow (parse, render the raw schema, run flatc, render the language template)
 - `Options.cs`: Command line options and validation
-- `Parser.cs`: Parses `.fbs` schema files into the model
-- `Model/Model.cs`: Scopes, tables, enums and fields
-- `Language.cs`: Per-language settings (flatc option, template, extension, namespace separator, reserved word table)
-- `Naming.cs`: Writes table, enum, field and namespace names for one output (language code or raw schema)
+- `Parser.cs`: Parses `.fbs` schema files into the model and resolves every field type; an undefined type is an error. Files of the same namespace share one scope
+- `Model/Model.cs`: Namespaces, scopes, tables, enums, fields and field types (`ScalarType`, `StringType`, `ArrayType`, `TableType`, `EnumType`)
+- `Language.cs`: Per-language settings (flatc option, extension, namespace separator, reserved word table)
+- `Naming.cs`: Writes identifiers, namespaces and qualified names for one output (language code or raw schema)
+- `Generator/`: One generator per output (`SchemaGenerator`, `CppGenerator`, `CSharpGenerator`). The base builds the scope, table and enum view models; each output builds the field view model (type, initializer, read expression, ...)
 - `Flatc.cs`: Installs flatc into the cache and runs it; work files live in a temporary directory removed after the run
 
 ### Template System
 - `Template/raw.txt`: Raw schema; renders every enum, nullable wrapper and table into one `protocol_raw.fbs`, which flatc compiles into a single `protocol_raw_generated.h`; for C#, flatc's per-type files are merged into a single `protocol_raw_generated.cs`
-- `Template/cpp/protocol.txt`: C++ code; includes `functions.txt` (template functions), `option.txt` (string encoding hook and type traits) and `unpack.txt`
-- `Template/c#/protocol.txt`: C# code; includes `functions.txt` (template functions) and `pool.txt` (builder pool)
+- `Template/cpp/protocol.txt`: C++ code; includes `option.txt` (string encoding hook and type traits) and `unpack.txt`
+- `Template/c#/protocol.txt`: C# code; includes `pool.txt` (builder pool)
 
-`include` paths are relative to the `Template` directory, e.g. `{{~ include 'cpp/functions.txt' ~}}`.
+`include` paths are relative to the `Template` directory, e.g. `{{~ include 'cpp/option.txt' ~}}`.
 
-Every template receives the same globals:
-- `context`: The parsed model
-- `include_path`: Include directory of the raw header
-- `name(x)`: Escaped name of a table, enum, enum value or field (C++ `name_`, C# `@name`)
-- `full_name(x)`: Qualified name of a table, enum or field type, e.g. `fb::protocol::internal::Item`
-- `raw_name(x)`: Qualified flatc name of a table, enum or field type, e.g. `fb::protocol::internal::raw::Item`
-- `ns(scope)` / `raw_ns(scope)`: Namespace of a scope, and its flatc namespace
-- `upper_camel`: Converts `snake_case` to `UpperCamel`
+Templates only print view models: `scopes` (namespace, tables, enums) and per-output lists such as `nullables`,
+`arrays` (C#) and `class_blocks` (C++).
+
+Table order in the schema does not matter. A C++ class must follow the classes it holds by value, in `std::optional` or
+in `std::vector`, so C++ classes are emitted in dependency order and a namespace is reopened when two namespaces refer
+to each other.
 
 Reserved words: flatc escapes identifiers itself but not namespaces. The C++ raw schema renames a reserved namespace
 segment (`class` to `class_`). A schema cannot contain C#'s `@`, so the C# raw schema keeps the name and the namespaces
@@ -228,7 +227,7 @@ table or enum names consistently, so those are not supported.
 - `string`
 
 ### Complex Types
-- **Arrays**: `[type]` (e.g., `[int]`, `[string]`)
+- **Arrays**: `[type]` (e.g., `[int]`, `[string]`, `[Item]`, `[Kind]`)
 - **Nullable**: `type?` (e.g., `int?`, `string?`)
 - **Custom Tables**: References to other tables
 - **Enums**: Custom enumeration types

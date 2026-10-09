@@ -1,8 +1,3 @@
-using FlatBufferEx.Model;
-using Scriban;
-using Scriban.Parsing;
-using Scriban.Runtime;
-
 namespace FlatBufferEx
 {
     public static class Program
@@ -51,13 +46,14 @@ namespace FlatBufferEx
                     // rendered again for every language.
                     var schema = Path.Combine(workPath, language.FlatcOption, "protocol_raw.fbs");
                     Directory.CreateDirectory(Path.GetDirectoryName(schema));
-                    await File.WriteAllTextAsync(schema, Render("raw.txt", context, options.IncludePath, Naming.Schema(language)));
+                    await File.WriteAllTextAsync(schema, new SchemaGenerator(context, language).Render());
                     await Flatc.Compile(language, schema, Path.Combine(outputPath, "raw", language.Name), context.Scopes.Select(x => x.Namespace));
 
+                    Generator generator = language == Language.Cpp ? new CppGenerator(context, options.IncludePath) : new CSharpGenerator(context);
                     var languageOutputPath = Path.Combine(outputPath, language.Name);
                     Directory.CreateDirectory(languageOutputPath);
                     var file = Path.Combine(languageOutputPath, "protocol" + language.Extension);
-                    await File.WriteAllTextAsync(file, Render(language.Template, context, options.IncludePath, Naming.Code(language)));
+                    await File.WriteAllTextAsync(file, generator.Render());
                     Console.WriteLine($"  Generated: {file}");
                 }
             }
@@ -65,47 +61,6 @@ namespace FlatBufferEx
             {
                 Directory.Delete(workPath, true);
             }
-        }
-        private static string Render(string templateName, Context context, string includePath, Naming naming)
-        {
-            var path = Path.Combine(Options.TemplateDirectory, templateName);
-            var template = Template.Parse(File.ReadAllText(path), path);
-            if (template.HasErrors)
-                throw new InvalidOperationException($"Template parsing errors in {path}:{Environment.NewLine}{string.Join(Environment.NewLine, template.Messages)}");
-
-            var globals = new ScriptObject
-            {
-                ["context"] = context,
-                ["include_path"] = includePath,
-            };
-            globals.Import("name", new Func<object, string>(naming.Name));
-            globals.Import("full_name", new Func<object, string>(naming.FullName));
-            globals.Import("raw_name", new Func<object, string>(naming.RawName));
-            globals.Import("ns", new Func<Scope, string>(naming.Namespace));
-            globals.Import("raw_ns", new Func<Scope, string>(naming.RawNamespace));
-            globals.Import("upper_camel", new Func<string, string>(UpperCamel));
-
-            var templateContext = new TemplateContext
-            {
-                TemplateLoader = new TemplateLoader(),
-                LoopLimit = 0,
-            };
-            templateContext.PushGlobal(globals);
-            return template.Render(templateContext);
-        }
-        private static string UpperCamel(string value)
-        {
-            if (value == null)
-                return null;
-
-            return string.Concat(value.ToLower().Split('_', StringSplitOptions.RemoveEmptyEntries).Select(x => char.ToUpperInvariant(x[0]) + x.Substring(1)));
-        }
-
-        private sealed class TemplateLoader : ITemplateLoader
-        {
-            public string GetPath(TemplateContext context, SourceSpan callerSpan, string templateName) => Path.Combine(Options.TemplateDirectory, templateName);
-            public string Load(TemplateContext context, SourceSpan callerSpan, string templatePath) => File.ReadAllText(templatePath);
-            public ValueTask<string> LoadAsync(TemplateContext context, SourceSpan callerSpan, string templatePath) => new(File.ReadAllText(templatePath));
         }
     }
 }

@@ -1,3 +1,4 @@
+using FlatBufferEx.Model;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
@@ -36,7 +37,7 @@ namespace FlatBufferEx
             }
         }
 
-        public static async Task Compile(Language language, string schema, string outputPath, IEnumerable<List<string>> namespaces)
+        public static async Task Compile(Language language, string schema, string outputPath, IEnumerable<Namespace> namespaces)
         {
             if (Directory.Exists(outputPath))
                 Directory.Delete(outputPath, true);
@@ -79,10 +80,11 @@ namespace FlatBufferEx
                 if (!language.EscapesNamespaceInSchema)
                 {
                     // Longer namespaces first, so a shorter prefix does not match a namespace that is already escaped
-                    foreach (var ns in namespaces.OrderByDescending(x => x.Count))
+                    var naming = Naming.Code(language);
+                    foreach (var ns in namespaces.OrderByDescending(x => x.Segments.Count))
                     {
-                        var name = string.Join('.', ns);
-                        var escaped = string.Join('.', ns.Select(language.Escape));
+                        var name = string.Join('.', ns.Segments);
+                        var escaped = naming.Namespace(ns);
                         if (name != escaped)
                             merged = Regex.Replace(merged, $@"(?<![\w.@]){Regex.Escape(name)}(?!\w)", escaped);
                     }

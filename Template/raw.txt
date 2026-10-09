@@ -1,23 +1,12 @@
-{{~
-func raw_type(field)
-    if field.is_array
-        ret '[' + raw_type(field.array_element) + ']'
-    else if field.is_nullable_scalar
-        ret 'nullable.' + field.nullable_table_name
-    else
-        ret raw_name(field)
-    end
-end
-~}}
-{{~ for scope in context.scopes ~}}
+{{~ for scope in scopes ~}}
 {{~ if (scope.enums | array.size) > 0 ~}}
-namespace {{ raw_ns(scope) }};
+namespace {{ scope.raw_namespace }};
 
 {{~ for enum in scope.enums ~}}
-enum {{ enum.name }} : {{ enum.type }}
+enum {{ enum.schema_name }} : {{ enum.type }}
 {
 {{~ for value in enum.values ~}}
-    {{ value.name }}{{ if value.value }} = {{ value.value }}{{ end }}{{ if !for.last }},{{ end }}
+    {{ value.schema_name }}{{ if value.value }} = {{ value.value }}{{ end }}{{ if !for.last }},{{ end }}
 {{~ end ~}}
 }
 
@@ -26,20 +15,20 @@ enum {{ enum.name }} : {{ enum.type }}
 {{~ end ~}}
 namespace nullable;
 
-{{~ for field in context.nullable_scalar_types ~}}
-table {{ field.nullable_table_name }} {
-    value: {{ raw_name(field) }};
+{{~ for nullable in nullables ~}}
+table {{ nullable.table }} {
+    value: {{ nullable.type }};
 }
 
 {{~ end ~}}
-{{~ for scope in context.scopes ~}}
+{{~ for scope in scopes ~}}
 {{~ if (scope.tables | array.size) > 0 ~}}
-namespace {{ raw_ns(scope) }};
+namespace {{ scope.raw_namespace }};
 
 {{~ for table in scope.tables ~}}
-table {{ table.name }} {
+table {{ table.schema_name }} {
 {{~ for field in table.fields ~}}
-    {{ field.name }}: {{ raw_type(field) }};
+    {{ field.name }}: {{ field.type }};
 {{~ end ~}}
 }
 

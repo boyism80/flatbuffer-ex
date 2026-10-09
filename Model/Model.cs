@@ -1,75 +1,71 @@
 namespace FlatBufferEx.Model
 {
-    public class Field
+    public sealed record Namespace(IReadOnlyList<string> Segments)
     {
-        private static readonly HashSet<string> PrimitiveTypes = new()
-        {
-            "byte", "ubyte", "bool", "short", "ushort", "int", "uint", "float", "long", "ulong", "double", "string"
-        };
+        public static readonly Namespace Global = new(new List<string>());
 
-        public Context Context { get; set; }
-        public Scope Scope { get; set; }
-        public string Name { get; set; }
-        public string Type { get; set; }
-        public string Init { get; set; }
-        public Field ArrayElement { get; set; }
-        public bool IsNullable { get; set; }
+        // Namespace of the flatc-generated types that back the generated classes.
+        public Namespace Raw => new(Segments.Append("raw").ToList());
 
-        // Namespace written in the schema type, e.g. `fb.protocol.internal` of `fb.protocol.internal.Item`.
-        // Null when the type is referenced without a namespace.
-        public List<string> ExplicitNamespace { get; set; }
+        public bool Equals(Namespace other) => other != null && Segments.SequenceEqual(other.Segments);
+        public override int GetHashCode() => string.Join('.', Segments).GetHashCode();
+    }
 
-        public bool IsArray => ArrayElement != null;
-        public bool IsPrimitive => PrimitiveTypes.Contains(Type);
-        public bool IsTable => !IsPrimitive && !IsArray && Context.ScopesOf(this).Any(x => x.Tables.Any(t => t.Name == Type));
-        public bool IsEnum => !IsPrimitive && !IsArray && Context.ScopesOf(this).Any(x => x.Enums.Any(e => e.Name == Type));
+    public abstract record FieldType(bool Nullable)
+    {
+        // Lets templates branch on the type, since they cannot see the record class.
+        public abstract string Kind { get; }
 
         // A nullable scalar has no null in flatbuffers, so it is stored in a wrapper table of the `nullable` namespace.
-        public bool IsNullableScalar => IsNullable && !IsTable && Type != "string";
-        public string NullableTableName => "nullable_" + string.Join('_', TypeNamespace.Append(Type)).ToLower();
+        public virtual string NullableTableName => null;
+        public bool IsNullableScalar => Nullable && NullableTableName != null;
+    }
 
-        public List<string> TypeNamespace
+    // byte, ubyte, bool, short, ushort, int, uint, float, long, ulong, double
+    public sealed record ScalarType(string Name, bool Nullable) : FieldType(Nullable)
+    {
+        public override string Kind => "scalar";
+        public override string NullableTableName => $"nullable_{Name}".ToLower();
+    }
+
+    public sealed record StringType(bool Nullable) : FieldType(Nullable)
+    {
+        public override string Kind => "string";
+    }
+
+    public sealed record ArrayType(FieldType Element) : FieldType(false)
+    {
+        public override string Kind => "array";
+    }
+
+    public sealed record TableType(Table Table, bool Nullable) : FieldType(Nullable)
+    {
+        public override string Kind => "table";
+    }
+
+    public sealed record EnumType(Enum Enum, bool Nullable) : FieldType(Nullable)
+    {
+        public override string Kind => "enum";
+        public override string NullableTableName => ("nullable_" + string.Join('_', Enum.Scope.Namespace.Segments.Append(Enum.Name))).ToLower();
+    }
+
+    public class Field
+    {
+        public string Name { get; set; }
+        public FieldType Type { get; set; }
+        public string Init { get; set; }
+
+        // Array element types first, then the field type itself.
+        public IEnumerable<FieldType> Types
         {
             get
             {
-                if (IsPrimitive)
-                    return new List<string>();
+                var types = new List<FieldType>();
+                for (var type = Type; type != null; type = (type as ArrayType)?.Element)
+                    types.Add(type);
 
-                return ExplicitNamespace ?? Scope.Namespace;
-            }
-        }
-
-        public List<string> RawTypeNamespace
-        {
-            get
-            {
-                if (IsPrimitive)
-                    return new List<string>();
-
-                return TypeNamespace.Append("raw").ToList();
-            }
-        }
-
-        public string TypeKey
-        {
-            get
-            {
-                var key = IsArray ? $"[{ArrayElement.TypeKey}]" : string.Join('.', TypeNamespace.Append(Type));
-                return IsNullable ? $"{key}?" : key;
-            }
-        }
-
-        public IEnumerable<Field> SelfAndElements
-        {
-            get
-            {
-                if (IsArray)
-                {
-                    foreach (var field in ArrayElement.SelfAndElements)
-                        yield return field;
-                }
-
-                yield return this;
+                types.Reverse();
+                return types;
             }
         }
     }
@@ -97,34 +93,24 @@ namespace FlatBufferEx.Model
         public List<EnumValue> Values { get; set; }
     }
 
+    // The contents of one schema file.
     public class Scope
     {
-        public List<string> Namespace { get; set; }
+        public Namespace Namespace { get; set; }
         public List<Table> Tables { get; set; }
         public List<Enum> Enums { get; set; }
-
-        public List<string> RawNamespace => Namespace.Append("raw").ToList();
     }
 
     public class Context
     {
         public List<Scope> Scopes { get; set; }
 
-        // One field per distinct type, including array element types
-        public IEnumerable<Field> FieldTypes => Scopes
-            .SelectMany(x => x.Tables)
-            .SelectMany(x => x.Fields)
-            .SelectMany(x => x.SelfAndElements)
-            .GroupBy(x => x.TypeKey)
-            .Select(x => x.First());
+        public IEnumerable<Table> Tables => Scopes.SelectMany(x => x.Tables);
+        public IEnumerable<Enum> Enums => Scopes.SelectMany(x => x.Enums);
 
-        public IEnumerable<Field> NullableScalarTypes => FieldTypes.Where(x => x.IsNullableScalar);
-        public IEnumerable<Field> ArrayTypes => FieldTypes.Where(x => x.IsArray);
-
-        public IEnumerable<Scope> ScopesOf(Field field)
-        {
-            var ns = field.ExplicitNamespace ?? field.Scope.Namespace;
-            return Scopes.Where(x => x.Namespace.SequenceEqual(ns));
-        }
+        // Every distinct field type in order of first use, including array element types.
+        public IEnumerable<FieldType> FieldTypes => Tables.SelectMany(x => x.Fields).SelectMany(x => x.Types).Distinct();
+        public IEnumerable<FieldType> NullableScalarTypes => FieldTypes.Where(x => x.IsNullableScalar);
+        public IEnumerable<ArrayType> ArrayTypes => FieldTypes.OfType<ArrayType>();
     }
 }

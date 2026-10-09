@@ -17,13 +17,14 @@
  *          Generation timestamp: {{ date.now | date.to_string '%d %b %Y' }}
  */
 
-{{~ include 'c#/functions.txt' ~}}
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using Google.FlatBuffers;
 using Microsoft.Extensions.ObjectPool;
+{{~ if (nullables | array.size) > 0 ~}}
 using nullable;
+{{~ end ~}}
 
 namespace Google.FlatBuffers
 {
@@ -41,111 +42,110 @@ namespace Google.FlatBuffers
             return builder.CreateString(value);
         }
 
-{{~ for nullable_field in context.nullable_scalar_types ~}}
-{{~ if nullable_field.is_primitive ~}}
-        public static Offset<{{ nullable_field.nullable_table_name }}> Build(this FlatBufferBuilder builder, {{ cs_type(nullable_field) }} value)
+{{~ for nullable in nullables ~}}
+        public static Offset<{{ nullable.table }}> Build(this FlatBufferBuilder builder, {{ nullable.type }} value)
         {
             if (value.HasValue)
-                return nullable.{{ nullable_field.nullable_table_name }}.Create{{ nullable_field.nullable_table_name }}(builder, value.Value);
+                return nullable.{{ nullable.table }}.Create{{ nullable.table }}(builder, {{ nullable.value }});
             else
                 return default;
         }
 {{~ end ~}}
-{{~ end ~}}
-{{~ for scope in context.scopes ~}}
+{{~ for scope in scopes ~}}
 {{~ for table in scope.tables ~}}
-        public static Offset<{{ raw_name(table) }}> Build(this FlatBufferBuilder builder, {{ full_name(table) }} value)
+        public static Offset<{{ table.raw_name }}> Build(this FlatBufferBuilder builder, {{ table.full_name }} value)
         {
             if (value == null)
                 return default;
 
 {{~ if (table.fields | array.size) > 0 ~}}
-            return {{ raw_name(table) }}.Create{{ table.name }}(builder,
+            return {{ table.raw_name }}.Create{{ table.schema_name }}(builder,
 {{~ for field in table.fields ~}}
-                builder.Build(value.{{ upper_camel(field.name) }}){{ if !for.last }},
+                builder.Build(value.{{ field.name }}){{ if !for.last }},
 {{~ end ~}}
 {{~ end ~}});
 {{~ else ~}}
-            {{ raw_name(table) }}.Start{{ table.name }}(builder);
-            return {{ raw_name(table) }}.End{{ table.name }}(builder);
+            {{ table.raw_name }}.Start{{ table.schema_name }}(builder);
+            return {{ table.raw_name }}.End{{ table.schema_name }}(builder);
 {{~ end ~}}
         }
 {{~ end ~}}
 {{~ end ~}}
-{{~ for field in context.array_types ~}}
-        public static VectorOffset Build(this FlatBufferBuilder builder, List<{{ cs_type(field.array_element) }}> value)
+{{~ for array in arrays ~}}
+        public static VectorOffset Build(this FlatBufferBuilder builder, List<{{ array.type }}> value)
         {
-{{~ if field.array_element.type == 'string' ~}}
+{{~ case array.kind ~}}
+{{~ when "string" ~}}
             var offsets = value.ConvertAll(x => builder.Build(x).Value);
-{{~ end ~}}
-{{~ if field.array_element.is_primitive ~}}
-            builder.StartVector({{ cs_scalar_size(field.array_element) }}, value.Count, {{ cs_scalar_size(field.array_element) }});
-{{~ if field.array_element.is_nullable ~}}
-            builder.Add(value.Select(x => builder.Build(x)).ToArray());
-{{~ else if field.array_element.type == 'string' ~}}
+            builder.StartVector(4, value.Count, 4);
             foreach (var offset in offsets)
             {
                 builder.AddOffset(offset);
             }
-{{~ else ~}}
-            builder.Add(value.ToArray());
-{{~ end ~}}
             return builder.EndVector();
-{{~ else ~}}
-            return builder.CreateVectorOfTables<{{ raw_name(field.array_element) }}>(value.Select(x => Build(builder, x)).ToArray());
+{{~ when "scalar" ~}}
+            builder.StartVector({{ array.size }}, value.Count, {{ array.size }});
+            builder.Add(value.ToArray());
+            return builder.EndVector();
+{{~ when "enum" ~}}
+            builder.StartVector({{ array.size }}, value.Count, {{ array.size }});
+            builder.Add(value.Select(x => ({{ array.underlying }})x).ToArray());
+            return builder.EndVector();
+{{~ when "table" ~}}
+            return builder.CreateVectorOfTables<{{ array.raw_name }}>(value.Select(x => Build(builder, x)).ToArray());
 {{~ end ~}}
         }
 {{~ end ~}}
-{{~ for scope in context.scopes ~}}
+{{~ for scope in scopes ~}}
 {{~ for enum in scope.enums ~}}
-        public static {{ raw_name(enum) }} Build(this FlatBufferBuilder builder, {{ full_name(enum) }} value)
+        public static {{ enum.raw_name }} Build(this FlatBufferBuilder builder, {{ enum.full_name }} value)
         {
-            return ({{ raw_name(enum) }})value;
+            return ({{ enum.raw_name }})value;
         }
 {{~ end ~}}
 {{~ end ~}}
     }
 }
 
-{{~ for scope in context.scopes ~}}
-namespace {{ ns(scope) }}
+{{~ for scope in scopes ~}}
+namespace {{ scope.namespace }}
 {
     public enum FlatBufferProtocolType
     {
 {{~ for table in scope.tables ~}}
-        {{ name(table) }}{{ if !for.last }},{{ end }}
+        {{ table.name }}{{ if !for.last }},{{ end }}
 {{~ end ~}}
     }
 
 {{~ for enum in scope.enums ~}}
-    public enum {{ name(enum) }}
+    public enum {{ enum.name }}
     {
 {{~ for value in enum.values ~}}
-        {{ name(value) }}{{ if value.value }} = {{ value.value }}{{ end }},
+        {{ value.name }}{{ if value.value }} = {{ value.value }}{{ end }},
 {{~ end ~}}
     }
 {{~ end ~}}
 
 {{~ for table in scope.tables ~}}
-{{~ class_name = name(table) ~}}
+{{~ class_name = table.name ~}}
     public class {{ class_name }} : IFlatBufferEx
     {
         public int ProtocolType => (int)FlatBufferProtocolType.{{ class_name }};
 {{~ for field in table.fields ~}}
-        public {{ cs_type(field) }} {{ upper_camel(field.name) }} { get; set; }{{ cs_default_initializer(field) }}
+        public {{ field.type }} {{ field.name }} { get; set; }{{ field.initializer }}
 {{~ end ~}}
 
         public {{ class_name }}()
         { }
 
-        public {{ class_name }}({{ raw_name(table) }} raw)
+        public {{ class_name }}({{ table.raw_name }} raw)
         {
 {{~ for field in table.fields ~}}
-            {{ upper_camel(field.name) }} = {{ cs_read_field('raw', field) }};
+            {{ field.name }} = {{ field.read }};
 {{~ end ~}}
         }
 
-        public {{ class_name }}(byte[] bytes) : this({{ raw_name(table) }}.GetRootAs{{ table.name }}(new ByteBuffer(bytes)))
+        public {{ class_name }}(byte[] bytes) : this({{ table.raw_name }}.GetRootAs{{ table.schema_name }}(new ByteBuffer(bytes)))
         { }
 
         public byte[] Serialize()
@@ -177,7 +177,7 @@ namespace {{ ns(scope) }}
             return protocolType switch
             {
 {{~ for table in scope.tables ~}}
-                FlatBufferProtocolType.{{ name(table) }} => typeof({{ full_name(table) }}),
+                FlatBufferProtocolType.{{ table.name }} => typeof({{ table.full_name }}),
 {{~ end ~}}
                 _ => throw new ArgumentException(),
             };
